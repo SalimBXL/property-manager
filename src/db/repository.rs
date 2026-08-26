@@ -152,6 +152,17 @@ pub fn get_lease(conn: &Connection, id: i64) -> AppResult<Lease> {
     })
 }
 
+/// Liste tous les baux actifs (end_date IS NULL), tous biens confondus.
+pub fn list_active_leases(conn: &Connection) -> AppResult<Vec<Lease>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, property_id, tenant_id, monthly_rent_cents, start_date, end_date
+         FROM lease WHERE end_date IS NULL
+         ORDER BY start_date",
+    )?;
+    let rows = stmt.query_map([], Lease::from_row)?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
 // ---------- RentPayment ----------
 
 pub fn insert_rent_payment(conn: &Connection, rp: &RentPayment) -> AppResult<i64> {

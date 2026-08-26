@@ -30,20 +30,21 @@ impl Property {
     }
 
     pub fn from_row(row: &Row) -> SqlResult<Self> {
+        let id: i64 = row.get("id")?;
         let purchase_date_str: String = row.get("purchase_date")?;
+        let purchase_date =
+            NaiveDate::parse_from_str(&purchase_date_str, "%Y-%m-%d").map_err(|_| {
+                rusqlite::Error::InvalidColumnType(
+                    0,
+                    format!("purchase_date='{}' (id={})", purchase_date_str, id),
+                    rusqlite::types::Type::Text,
+                )
+            })?;
         Ok(Property {
-            id: Some(row.get("id")?), // toujours Some, puisque ça vient de la base
+            id: Some(id),
             label: row.get("label")?,
             address: row.get("address")?,
-            purchase_date: NaiveDate::parse_from_str(&purchase_date_str, "%Y-%m-%d").map_err(
-                |e| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        0,
-                        rusqlite::types::Type::Text,
-                        Box::new(e),
-                    )
-                },
-            )?,
+            purchase_date,
             purchase_price_cents: row.get("purchase_price_cents")?,
             notes: row.get("notes")?,
         })

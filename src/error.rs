@@ -18,6 +18,9 @@ pub enum AppError {
         "impossible de supprimer le bien (id {0}) : des baux ou dépenses y sont encore rattachés"
     )]
     PropertyHasDependents(i64),
+
+    #[error("date invalide en base pour le bien (id {id}) : '{value}'")]
+    CorruptedDateData { id: i64, value: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;

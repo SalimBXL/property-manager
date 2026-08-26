@@ -10,7 +10,6 @@ use property_manager::models::lease::Lease;
 use property_manager::models::property::Property;
 use property_manager::models::rent_payment::RentPayment;
 use property_manager::models::tenant::Tenant;
-use rusqlite::Connection;
 
 #[derive(Parser)]
 #[command(name = "property-manager", about = "Gestion de biens immobiliers")]
@@ -25,6 +24,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Lister tous les baux actifs
+    ListActiveLeases,
+
+    /// Lister les dépenses d'un bien
+    ListExpenses { property_id: i64 },
+
+    /// Supprimer un bien (refusé s'il a des baux ou dépenses rattachés)
+    DeleteProperty { property_id: i64 },
     /// Enregistrer un nouveau bien
     AddProperty {
         label: String,
@@ -99,6 +106,44 @@ fn main() -> AppResult<()> {
     let cli = Cli::parse();
     let conn = db::open(&cli.db_path)?;
     match cli.command {
+        Command::ListActiveLeases => {
+            let leases = list_active_leases(&conn)?;
+            if leases.is_empty() {
+                println!("Aucun bail actif.");
+            }
+            for l in leases {
+                println!(
+                    "[bail {}] bien #{} — locataire #{} — loyer {:.2} €/mois — depuis le {}",
+                    l.id.unwrap(),
+                    l.property_id,
+                    l.tenant_id,
+                    l.monthly_rent_cents as f64 / 100.0,
+                    l.start_date
+                );
+            }
+        }
+
+        Command::ListExpenses { property_id } => {
+            let expenses = list_expenses_for_property(&conn, property_id)?;
+            if expenses.is_empty() {
+                println!("Aucune dépense enregistrée pour ce bien.");
+            }
+            for e in expenses {
+                println!(
+                    "[{}] {} — {:.2} € — {}{}",
+                    e.id.unwrap(),
+                    e.category,
+                    e.amount_cents as f64 / 100.0,
+                    e.expense_date,
+                    if e.recurring { " (récurrente)" } else { "" }
+                );
+            }
+        }
+
+        Command::DeleteProperty { property_id } => match delete_property(&conn, property_id) {
+            Ok(()) => println!("Bien {} supprimé.", property_id),
+            Err(e) => println!("Suppression refusée : {}", e),
+        },
         Command::AddProperty {
             label,
             address,
@@ -118,7 +163,6 @@ fn main() -> AppResult<()> {
         }
 
         Command::ListProperties => {
-            println!("---------- List properties ----------"); // PROBLEM
             let properties = list_properties(&conn)?;
             if properties.is_empty() {
                 println!("Aucun bien enregistré.");
