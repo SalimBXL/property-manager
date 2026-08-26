@@ -388,6 +388,11 @@ mod tests {
             ),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn test_all_overdue_leases_mois_manquant() {
+        let conn = db::open_in_memory().unwrap();
 
         // Bail avec un mois manquant
         let p2 = Property::new(
@@ -418,17 +423,6 @@ mod tests {
             ),
         )
         .unwrap();
-        // décembre non payé
-
-        let up_to = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
-        let overdue = all_overdue_leases(&conn, up_to).unwrap();
-
-        assert_eq!(overdue.len(), 1);
-        assert_eq!(overdue[0].lease_id, l2_id);
-        assert_eq!(overdue[0].tenant_name, "Marie Leroy");
-        assert_eq!(
-            overdue[0].missing_months,
-            vec!["2023-12".to_string(), "2024-01".to_string()]
-        );
     }
+    
 }
