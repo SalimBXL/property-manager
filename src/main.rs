@@ -10,6 +10,7 @@ use property_manager::models::lease::Lease;
 use property_manager::models::property::Property;
 use property_manager::models::rent_payment::RentPayment;
 use property_manager::models::tenant::Tenant;
+use rusqlite::Connection;
 
 #[derive(Parser)]
 #[command(name = "property-manager", about = "Gestion de biens immobiliers")]
@@ -119,11 +120,9 @@ fn main() -> AppResult<()> {
         Command::ListProperties => {
             println!("---------- List properties ----------"); // PROBLEM
             let properties = list_properties(&conn)?;
-
             if properties.is_empty() {
                 println!("Aucun bien enregistré.");
             }
-
             for p in properties {
                 println!(
                     "[{}] {} — {} — acheté le {} pour {:.2} €",
@@ -224,7 +223,5 @@ fn main() -> AppResult<()> {
             }
         }
     }
-
-    println!("---------- OK ----------");
     Ok(())
 }
