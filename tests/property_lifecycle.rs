@@ -1,7 +1,6 @@
 use chrono::NaiveDate;
 use property_manager::db;
 use property_manager::db::repository::*;
-use property_manager::error::AppError;
 use property_manager::models::expense::Expense;
 use property_manager::models::lease::Lease;
 use property_manager::models::property::Property;
