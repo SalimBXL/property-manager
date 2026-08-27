@@ -1,3 +1,4 @@
+mod tui;
 use chrono::NaiveDate;
 use clap::{Parser, Subcommand};
 
@@ -24,6 +25,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Afficher le dashboard interactif dans le terminal
+    Dashboard,
+
     /// Lister tous les baux actifs
     ListActiveLeases,
 
@@ -32,6 +36,7 @@ enum Command {
 
     /// Supprimer un bien (refusé s'il a des baux ou dépenses rattachés)
     DeleteProperty { property_id: i64 },
+
     /// Enregistrer un nouveau bien
     AddProperty {
         label: String,
@@ -43,14 +48,17 @@ enum Command {
         #[arg(long)]
         notes: Option<String>,
     },
+
     /// Lister tous les biens enregistrés
     ListProperties,
+
     /// Enregistrer un locataire
     AddTenant {
         name: String,
         #[arg(long)]
         contact: Option<String>,
     },
+
     /// Créer un bail pour un bien
     AddLease {
         property_id: i64,
@@ -72,6 +80,7 @@ enum Command {
         #[arg(long)]
         recurring: bool,
     },
+
     /// Enregistrer un paiement de loyer pour un bail
     AddPayment {
         lease_id: i64,
@@ -85,6 +94,7 @@ enum Command {
 
     /// Afficher la rentabilité de tous les biens
     Profitability,
+
     /// Afficher les baux avec des loyers en retard
     Overdue {
         /// Date de référence pour le calcul, format YYYY-MM-DD (par défaut : aujourd'hui)
@@ -106,6 +116,13 @@ fn main() -> AppResult<()> {
     let cli = Cli::parse();
     let conn = db::open(&cli.db_path)?;
     match cli.command {
+        Command::Dashboard => {
+            // Le dashboard gère sa propre connexion en interne
+            drop(conn);
+            tui::run(&cli.db_path)?;
+            return Ok(());
+        }
+
         Command::ListActiveLeases => {
             let leases = list_active_leases(&conn)?;
             if leases.is_empty() {
@@ -144,6 +161,7 @@ fn main() -> AppResult<()> {
             Ok(()) => println!("Bien {} supprimé.", property_id),
             Err(e) => println!("Suppression refusée : {}", e),
         },
+
         Command::AddProperty {
             label,
             address,

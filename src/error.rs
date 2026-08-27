@@ -19,8 +19,8 @@ pub enum AppError {
     )]
     PropertyHasDependents(i64),
 
-    #[error("date invalide en base pour le bien (id {id}) : '{value}'")]
-    CorruptedDateData { id: i64, value: String },
+    #[error("erreur terminal : {0}")]
+    Terminal(#[from] std::io::Error),
 }
 
 pub type AppResult<T> = Result<T, AppError>;
