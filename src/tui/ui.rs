@@ -29,7 +29,7 @@ fn draw_title(frame: &mut Frame, area: Rect) {
             "Property Manager",
             Style::default().add_modifier(Modifier::BOLD),
         ),
-        Span::raw("  —  appuie sur 'q' pour quitter"),
+        Span::raw("  —  'r' rafraîchir  —  'q' quitter"),
     ]))
     .block(Block::default().borders(Borders::ALL));
     frame.render_widget(title, area);

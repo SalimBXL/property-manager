@@ -38,16 +38,21 @@ fn event_loop(
 ) -> AppResult<()> {
     let today = chrono::Local::now().date_naive();
 
-    loop {
-        let profitability = all_properties_profitability(conn)?;
-        let overdue = all_overdue_leases(conn, today)?;
+    let mut profitability = all_properties_profitability(conn)?;
+    let mut overdue = all_overdue_leases(conn, today)?;
 
+    loop {
         terminal.draw(|frame| ui::draw(frame, &profitability, &overdue))?;
 
         if event::poll(Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
-                if key.code == KeyCode::Char('q') {
-                    return Ok(());
+                match key.code {
+                    KeyCode::Char('q') => return Ok(()),
+                    KeyCode::Char('r') => {
+                        profitability = all_properties_profitability(conn)?;
+                        overdue = all_overdue_leases(conn, today)?;
+                    }
+                    _ => {}
                 }
             }
         }
