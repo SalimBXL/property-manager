@@ -1,9 +1,14 @@
+use crate::db::repository::{
+    active_lease_for_property, get_property, list_expenses_for_property, list_leases_for_property,
+    list_payments_for_lease, total_expenses_for_property,
+};
+use crate::error::AppResult;
+use crate::models::expense::Expense;
+use crate::models::lease::Lease;
+use crate::models::property::Property;
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{Connection, params};
 use std::collections::HashSet;
-
-use crate::db::repository::{get_property, list_payments_for_lease, total_expenses_for_property};
-use crate::error::AppResult;
 
 // ---------- Rentabilité ----------
 
@@ -155,6 +160,44 @@ pub fn missing_rent_months(
     }
 
     Ok(missing)
+}
+
+// src/db/reporting.rs
+
+pub struct PropertyDetail {
+    pub property: Property,
+    pub expenses: Vec<Expense>,
+    pub leases: Vec<Lease>,
+    pub total_rent_collected: i64,
+    pub total_expenses: i64,
+    pub net_result: i64,
+    pub missing_months: Vec<String>, // vide si pas de bail actif ou à jour
+}
+
+pub fn property_detail(
+    conn: &Connection,
+    property_id: i64,
+    up_to: NaiveDate,
+) -> AppResult<PropertyDetail> {
+    let property = get_property(conn, property_id)?;
+    let expenses = list_expenses_for_property(conn, property_id)?;
+    let leases = list_leases_for_property(conn, property_id)?;
+    let profitability = property_profitability(conn, property_id)?;
+
+    let missing_months = match active_lease_for_property(conn, property_id)? {
+        Some(lease) => missing_rent_months(conn, lease.id.unwrap(), up_to)?,
+        None => Vec::new(),
+    };
+
+    Ok(PropertyDetail {
+        property,
+        expenses,
+        leases,
+        total_rent_collected: profitability.total_rent_collected,
+        total_expenses: profitability.total_expenses,
+        net_result: profitability.net_result,
+        missing_months,
+    })
 }
 
 // ---------- Tests ----------

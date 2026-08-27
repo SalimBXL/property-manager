@@ -105,6 +105,17 @@ pub fn insert_tenant(conn: &Connection, t: &Tenant) -> AppResult<i64> {
 
 // ---------- Lease ----------
 
+// src/db/repository.rs — section Lease
+
+pub fn list_leases_for_property(conn: &Connection, property_id: i64) -> AppResult<Vec<Lease>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, property_id, tenant_id, monthly_rent_cents, start_date, end_date
+         FROM lease WHERE property_id = ?1 ORDER BY start_date",
+    )?;
+    let rows = stmt.query_map(params![property_id], Lease::from_row)?;
+    Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
 pub fn insert_lease(conn: &Connection, l: &Lease) -> AppResult<i64> {
     conn.execute(
         "INSERT INTO lease (property_id, tenant_id, monthly_rent_cents, start_date, end_date)
