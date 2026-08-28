@@ -154,17 +154,22 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
             "{} — {}",
             detail.property.label, detail.property.address
         )),
-        Line::from(format!(
-            "Loyers encaissés : {:.2} €   Dépenses : {:.2} €   Net : ",
-            detail.total_rent_collected as f64 / 100.0,
-            detail.total_expenses as f64 / 100.0,
-        ))
-        .style(Style::default()), // le net est ajouté à part pour le colorer
+        Line::from(vec![
+            Span::raw(format!(
+                "Loyers encaissés : {:.2} €   Dépenses : {:.2} €   Net : ",
+                detail.total_rent_collected as f64 / 100.0,
+                detail.total_expenses as f64 / 100.0,
+            )),
+            Span::styled(
+                format!("{:.2} €", detail.net_result as f64 / 100.0),
+                net_style,
+            ),
+        ]),
     ];
-    summary_lines.push(Line::from(Span::styled(
-        format!("Net : {:.2} €", detail.net_result as f64 / 100.0),
-        net_style,
-    )));
+    // summary_lines.push(Line::from(Span::styled(
+    //     format!("Net : {:.2} €", detail.net_result as f64 / 100.0),
+    //     net_style,
+    // )));
 
     if detail.missing_months.is_empty() {
         summary_lines.push(Line::from(Span::styled(
