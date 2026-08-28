@@ -24,6 +24,30 @@ struct Cli {
     command: Command,
 }
 
+struct IndirectExpenseArgs {
+    category: String,
+    amount: f64,
+    date: String,
+    properties: Vec<i64>,
+    recurring: bool,
+}
+
+struct AddPropertyInput {
+    label: String,
+    address: String,
+    purchase_date: String,
+    purchase_price: f64,
+    notes: Option<String>,
+}
+
+struct AddExpenseInput {
+    property_id: i64,
+    category: String,
+    amount: f64,
+    date: String,
+    recurring: bool,
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Enregistrer un frais indirect, réparti à parts égales entre plusieurs biens
@@ -150,7 +174,16 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
             date,
             properties,
             recurring,
-        } => handle_add_indirect_expense(conn, category, amount, date, properties, recurring)?,
+        } => handle_add_indirect_expense(
+            conn,
+            IndirectExpenseArgs {
+                category,
+                amount,
+                date,
+                properties,
+                recurring,
+            },
+        )?,
 
         Command::Dashboard => unreachable!("géré en amont dans main()"),
 
@@ -166,7 +199,16 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
             purchase_date,
             purchase_price,
             notes,
-        } => handle_add_property(conn, label, address, purchase_date, purchase_price, notes)?,
+        } => handle_add_property(
+            conn,
+            AddPropertyInput {
+                label,
+                address,
+                purchase_date,
+                purchase_price,
+                notes,
+            },
+        )?,
 
         Command::ListProperties => handle_list_properties(conn)?,
 
@@ -185,7 +227,16 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
             amount,
             date,
             recurring,
-        } => handle_add_expense(conn, property_id, category, amount, date, recurring)?,
+        } => handle_add_expense(
+            conn,
+            AddExpenseInput {
+                property_id,
+                category,
+                amount,
+                date,
+                recurring,
+            },
+        )?,
 
         Command::AddPayment {
             lease_id,
@@ -201,23 +252,16 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
     Ok(())
 }
 
-fn handle_add_indirect_expense(
-    conn: &Connection,
-    category: String,
-    amount: f64,
-    date: String,
-    properties: Vec<i64>,
-    recurring: bool,
-) -> AppResult<()> {
-    let count = properties.len();
+fn handle_add_indirect_expense(conn: &Connection, input: IndirectExpenseArgs) -> AppResult<()> {
+    let count = input.properties.len();
     let id = insert_indirect_expense(
         conn,
         &IndirectExpenseInput {
-            category,
-            total_amount_cents: euros_to_cents(amount),
-            expense_date: parse_date(&date)?,
-            recurring,
-            property_ids: properties,
+            category: input.category,
+            total_amount_cents: euros_to_cents(input.amount),
+            expense_date: parse_date(&input.date)?,
+            recurring: input.recurring,
+            property_ids: input.properties,
         },
     )?;
     println!(
@@ -271,20 +315,13 @@ fn handle_delete_property(conn: &Connection, property_id: i64) {
     }
 }
 
-fn handle_add_property(
-    conn: &Connection,
-    label: String,
-    address: String,
-    purchase_date: String,
-    purchase_price: f64,
-    notes: Option<String>,
-) -> AppResult<()> {
+fn handle_add_property(conn: &Connection, input: AddPropertyInput) -> AppResult<()> {
     let property = Property::new(
-        label,
-        address,
-        parse_date(&purchase_date)?,
-        euros_to_cents(purchase_price),
-        notes,
+        input.label,
+        input.address,
+        parse_date(&input.purchase_date)?,
+        euros_to_cents(input.purchase_price),
+        input.notes,
     );
     let id = insert_property(conn, &property)?;
     println!("Bien créé avec l'id {}", id);
@@ -335,20 +372,13 @@ fn handle_add_lease(
     Ok(())
 }
 
-fn handle_add_expense(
-    conn: &Connection,
-    property_id: i64,
-    category: String,
-    amount: f64,
-    date: String,
-    recurring: bool,
-) -> AppResult<()> {
+fn handle_add_expense(conn: &Connection, input: AddExpenseInput) -> AppResult<()> {
     let expense = Expense::new(
-        property_id,
-        category,
-        euros_to_cents(amount),
-        parse_date(&date)?,
-        recurring,
+        input.property_id,
+        input.category,
+        euros_to_cents(input.amount),
+        parse_date(&input.date)?,
+        input.recurring,
     );
     let id = insert_expense(conn, &expense)?;
     println!("Dépense enregistrée avec l'id {}", id);
