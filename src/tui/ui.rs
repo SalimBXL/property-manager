@@ -72,6 +72,15 @@ fn draw_overview(
         .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
         .split(area);
 
+    draw_profitability_table(frame, chunks[0], profitability);
+    draw_overdue_panel(frame, chunks[1], overdue);
+}
+
+fn draw_profitability_table(
+    frame: &mut Frame,
+    area: Rect,
+    profitability: &[PropertyProfitability],
+) {
     let header = Row::new(vec!["Bien", "Loyers encaissés", "Dépenses", "Net"])
         .style(Style::default().add_modifier(Modifier::BOLD));
 
@@ -103,8 +112,10 @@ fn draw_overview(
             .borders(Borders::ALL)
             .title(" Rentabilité par bien "),
     );
-    frame.render_widget(table, chunks[0]);
+    frame.render_widget(table, area);
+}
 
+fn draw_overdue_panel(frame: &mut Frame, area: Rect, overdue: &[OverdueLease]) {
     let lines: Vec<Line> = if overdue.is_empty() {
         vec![Line::from(Span::styled(
             "Aucun loyer en retard.",
@@ -131,7 +142,7 @@ fn draw_overview(
             .borders(Borders::ALL)
             .title(" Loyers en retard "),
     );
-    frame.render_widget(panel, chunks[1]);
+    frame.render_widget(panel, area);
 }
 
 fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) {
