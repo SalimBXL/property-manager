@@ -17,7 +17,7 @@ Outil en Rust pour gérer un portefeuille de biens immobiliers (parkings, appart
 
 ## Stack technique
 
-- [Rust](https://www.rust-lang.org/) (édition 2021)
+- [Rust](https://www.rust-lang.org/) (édition 2024)
 - [`rusqlite`](https://crates.io/crates/rusqlite) (feature `bundled`) — accès SQLite sans dépendance système
 - [`chrono`](https://crates.io/crates/chrono) — gestion des dates
 - [`thiserror`](https://crates.io/crates/thiserror) — erreurs applicatives typées
@@ -73,7 +73,7 @@ Un **frais indirect** (`expense_type = 'indirect'`) concerne plusieurs biens à 
 
 ## Installation
 
-Prérequis : [Rust](https://www.rust-lang.org/tools/install) (édition 2021 ou plus récente).
+Prérequis : [Rust](https://www.rust-lang.org/tools/install) (édition 2024 ou plus récente).
 
 ```bash
 git clone <url-du-repo>
