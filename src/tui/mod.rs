@@ -52,7 +52,11 @@ fn event_loop(
         tab_labels.extend(properties.iter().map(|p| p.label.clone()));
 
         let detail: Option<PropertyDetail> = if selected_tab > 0 {
-            let property_id = properties[selected_tab - 1].id.unwrap();
+            let property_id = properties[selected_tab - 1].id.ok_or_else(|| {
+                property_manager::error::AppError::Internal(
+                    "un bien lu depuis la base doit toujours avoir un id".to_string(),
+                )
+            })?;
             Some(property_detail(conn, property_id, today)?)
         } else {
             None

@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("incohérence interne : {0}")]
+    Internal(String),
+
     #[error("répartition impossible : aucun bien spécifié pour ce frais indirect")]
     EmptyAllocation,
 

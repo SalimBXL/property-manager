@@ -2,6 +2,7 @@ use crate::db::repository::{
     active_lease_for_property, get_property, list_leases_for_property, list_payments_for_lease,
     total_expenses_for_property,
 };
+use crate::error::AppError;
 use crate::error::AppResult;
 use crate::models::lease::Lease;
 use crate::models::property::Property;
@@ -286,7 +287,14 @@ pub fn property_detail(
     let profitability = property_profitability(conn, property_id)?;
 
     let missing_months = match active_lease_for_property(conn, property_id)? {
-        Some(lease) => missing_rent_months(conn, lease.id.unwrap(), up_to)?,
+        Some(lease) => {
+            let lease_id = lease.id.ok_or_else(|| {
+                AppError::Internal(
+                    "un bail lu depuis la base doit toujours avoir un id".to_string(),
+                )
+            })?;
+            missing_rent_months(conn, lease_id, up_to)?
+        }
         None => Vec::new(),
     };
 
