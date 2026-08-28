@@ -6,7 +6,9 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, Tabs},
 };
 
-use property_manager::db::reporting::{OverdueLease, PropertyDetail, PropertyProfitability};
+use property_manager::db::reporting::{
+    ExpenseLine, OverdueLease, PropertyDetail, PropertyProfitability, RentPaymentLine,
+};
 
 pub fn draw(
     frame: &mut Frame,
@@ -137,7 +139,7 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(6), // résumé
-            Constraint::Min(0),    // dépenses
+            Constraint::Min(0),    // dépenses + paiements
         ])
         .split(area);
 
@@ -180,10 +182,19 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .block(Block::default().borders(Borders::ALL).title(" Résumé "));
     frame.render_widget(summary, chunks[0]);
 
+    let bottom = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+        .split(chunks[1]);
+
+    draw_expenses_table(frame, bottom[0], &detail.expenses);
+    draw_rent_payments_table(frame, bottom[1], &detail.rent_payments);
+}
+
+fn draw_expenses_table(frame: &mut Frame, area: Rect, expenses: &[ExpenseLine]) {
     let header = Row::new(vec!["Catégorie", "Montant", "Date", "Récurrente", "Type"])
         .style(Style::default().add_modifier(Modifier::BOLD));
-    let rows: Vec<Row> = detail
-        .expenses
+    let rows: Vec<Row> = expenses
         .iter()
         .map(|e| {
             let amount_display = if e.is_indirect {
@@ -211,13 +222,42 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .collect();
     let widths = [
         Constraint::Percentage(25),
-        Constraint::Percentage(25),
+        Constraint::Percentage(30),
         Constraint::Percentage(20),
-        Constraint::Percentage(15),
-        Constraint::Percentage(15),
+        Constraint::Percentage(12),
+        Constraint::Percentage(13),
     ];
     let table = Table::new(rows, widths)
         .header(header)
         .block(Block::default().borders(Borders::ALL).title(" Dépenses "));
-    frame.render_widget(table, chunks[1]);
+    frame.render_widget(table, area);
+}
+
+fn draw_rent_payments_table(frame: &mut Frame, area: Rect, payments: &[RentPaymentLine]) {
+    let header = Row::new(vec!["Locataire", "Période", "Montant", "Date"])
+        .style(Style::default().add_modifier(Modifier::BOLD));
+    let rows: Vec<Row> = payments
+        .iter()
+        .map(|p| {
+            Row::new(vec![
+                Cell::from(p.tenant_name.clone()),
+                Cell::from(p.period_month.clone()),
+                Cell::from(format!("{:.2} €", p.amount_cents as f64 / 100.0))
+                    .style(Style::default().fg(Color::Green)),
+                Cell::from(p.payment_date.to_string()),
+            ])
+        })
+        .collect();
+    let widths = [
+        Constraint::Percentage(30),
+        Constraint::Percentage(20),
+        Constraint::Percentage(25),
+        Constraint::Percentage(25),
+    ];
+    let table = Table::new(rows, widths).header(header).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Loyers encaissés "),
+    );
+    frame.render_widget(table, area);
 }

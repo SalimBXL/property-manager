@@ -9,6 +9,48 @@ use chrono::{Datelike, NaiveDate};
 use rusqlite::{Connection, params};
 use std::collections::HashSet;
 
+pub struct RentPaymentLine {
+    pub tenant_name: String,
+    pub period_month: String,
+    pub payment_date: NaiveDate,
+    pub amount_cents: i64,
+}
+
+pub fn list_rent_payments_for_property(
+    conn: &Connection,
+    property_id: i64,
+) -> AppResult<Vec<RentPaymentLine>> {
+    let mut stmt = conn.prepare(
+        "SELECT t.name, rp.period_month, rp.payment_date, rp.amount_cents
+         FROM rent_payment rp
+         JOIN lease l ON rp.lease_id = l.id
+         JOIN tenant t ON l.tenant_id = t.id
+         WHERE l.property_id = ?1
+         ORDER BY rp.period_month",
+    )?;
+
+    let raw_rows = stmt.query_map(params![property_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, i64>(3)?,
+        ))
+    })?;
+
+    let mut lines = Vec::new();
+    for row in raw_rows {
+        let (tenant_name, period_month, date_str, amount_cents) = row?;
+        lines.push(RentPaymentLine {
+            tenant_name,
+            period_month,
+            payment_date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?,
+            amount_cents,
+        });
+    }
+    Ok(lines)
+}
+
 // ---------- Rentabilité ----------
 
 pub fn all_properties_profitability(conn: &Connection) -> AppResult<Vec<PropertyProfitability>> {
@@ -219,7 +261,8 @@ pub fn missing_rent_months(
 
 pub struct PropertyDetail {
     pub property: Property,
-    pub expenses: Vec<ExpenseLine>, // était Vec<Expense>
+    pub expenses: Vec<ExpenseLine>,
+    pub rent_payments: Vec<RentPaymentLine>, // nouveau
     pub leases: Vec<Lease>,
     pub total_rent_collected: i64,
     pub total_expenses: i64,
@@ -233,7 +276,8 @@ pub fn property_detail(
     up_to: NaiveDate,
 ) -> AppResult<PropertyDetail> {
     let property = get_property(conn, property_id)?;
-    let expenses = list_expense_lines_for_property(conn, property_id)?; // changé
+    let expenses = list_expense_lines_for_property(conn, property_id)?;
+    let rent_payments = list_rent_payments_for_property(conn, property_id)?; // nouveau
     let leases = list_leases_for_property(conn, property_id)?;
     let profitability = property_profitability(conn, property_id)?;
 
@@ -245,6 +289,7 @@ pub fn property_detail(
     Ok(PropertyDetail {
         property,
         expenses,
+        rent_payments,
         leases,
         total_rent_collected: profitability.total_rent_collected,
         total_expenses: profitability.total_expenses,
