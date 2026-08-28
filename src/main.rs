@@ -48,6 +48,54 @@ struct AddExpenseInput {
     recurring: bool,
 }
 
+impl IndirectExpenseArgs {
+    fn new(
+        category: String,
+        amount: f64,
+        date: String,
+        properties: Vec<i64>,
+        recurring: bool,
+    ) -> Self {
+        Self {
+            category,
+            amount,
+            date,
+            properties,
+            recurring,
+        }
+    }
+}
+
+impl AddPropertyInput {
+    fn new(
+        label: String,
+        address: String,
+        purchase_date: String,
+        purchase_price: f64,
+        notes: Option<String>,
+    ) -> Self {
+        Self {
+            label,
+            address,
+            purchase_date,
+            purchase_price,
+            notes,
+        }
+    }
+}
+
+impl AddExpenseInput {
+    fn new(property_id: i64, category: String, amount: f64, date: String, recurring: bool) -> Self {
+        Self {
+            property_id,
+            category,
+            amount,
+            date,
+            recurring,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Enregistrer un frais indirect, réparti à parts égales entre plusieurs biens
@@ -168,23 +216,6 @@ fn main() -> AppResult<()> {
 
 fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
     match command {
-        Command::AddIndirectExpense {
-            category,
-            amount,
-            date,
-            properties,
-            recurring,
-        } => handle_add_indirect_expense(
-            conn,
-            IndirectExpenseArgs {
-                category,
-                amount,
-                date,
-                properties,
-                recurring,
-            },
-        )?,
-
         Command::Dashboard => unreachable!("géré en amont dans main()"),
 
         Command::ListActiveLeases => handle_list_active_leases(conn)?,
@@ -192,23 +223,6 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
         Command::ListExpenses { property_id } => handle_list_expenses(conn, property_id)?,
 
         Command::DeleteProperty { property_id } => handle_delete_property(conn, property_id),
-
-        Command::AddProperty {
-            label,
-            address,
-            purchase_date,
-            purchase_price,
-            notes,
-        } => handle_add_property(
-            conn,
-            AddPropertyInput {
-                label,
-                address,
-                purchase_date,
-                purchase_price,
-                notes,
-            },
-        )?,
 
         Command::ListProperties => handle_list_properties(conn)?,
 
@@ -221,23 +235,6 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
             start_date,
         } => handle_add_lease(conn, property_id, tenant_id, monthly_rent, start_date)?,
 
-        Command::AddExpense {
-            property_id,
-            category,
-            amount,
-            date,
-            recurring,
-        } => handle_add_expense(
-            conn,
-            AddExpenseInput {
-                property_id,
-                category,
-                amount,
-                date,
-                recurring,
-            },
-        )?,
-
         Command::AddPayment {
             lease_id,
             amount,
@@ -248,8 +245,49 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
         Command::Profitability => handle_profitability(conn)?,
 
         Command::Overdue { up_to } => handle_overdue(conn, up_to)?,
+
+        other => run_add_command(conn, other)?,
     }
     Ok(())
+}
+
+fn run_add_command(conn: &Connection, command: Command) -> AppResult<()> {
+    match command {
+        Command::AddIndirectExpense {
+            category,
+            amount,
+            date,
+            properties,
+            recurring,
+        } => handle_add_indirect_expense(
+            conn,
+            IndirectExpenseArgs::new(category, amount, date, properties, recurring),
+        ),
+
+        Command::AddProperty {
+            label,
+            address,
+            purchase_date,
+            purchase_price,
+            notes,
+        } => handle_add_property(
+            conn,
+            AddPropertyInput::new(label, address, purchase_date, purchase_price, notes),
+        ),
+
+        Command::AddExpense {
+            property_id,
+            category,
+            amount,
+            date,
+            recurring,
+        } => handle_add_expense(
+            conn,
+            AddExpenseInput::new(property_id, category, amount, date, recurring),
+        ),
+
+        _ => unreachable!("géré en amont dans run_command()"),
+    }
 }
 
 fn handle_add_indirect_expense(conn: &Connection, input: IndirectExpenseArgs) -> AppResult<()> {
