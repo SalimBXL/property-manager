@@ -130,7 +130,11 @@ cargo run -- overdue --up-to 2024-06-30
 cargo run -- dashboard
 ```
 
-Affiche une vue d'ensemble du portefeuille (rentabilité par bien, loyers en retard) ainsi qu'un onglet détaillé par bien (dépenses — directes et indirectes — et statut de paiement). Navigation :
+Affiche une vue d'ensemble du portefeuille (rentabilité par bien, loyers en retard) ainsi qu'un onglet détaillé par bien, avec :
+- un résumé (loyers encaissés, dépenses, net, statut de paiement du bail actif)
+- le détail des dépenses (directes et indirectes) et des loyers encaissés, affichés côte à côte
+
+Navigation :
 
 | Touche    | Action                                |
 |-----------|-----------------------------------------|

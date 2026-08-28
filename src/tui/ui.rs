@@ -166,10 +166,6 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
             ),
         ]),
     ];
-    // summary_lines.push(Line::from(Span::styled(
-    //     format!("Net : {:.2} €", detail.net_result as f64 / 100.0),
-    //     net_style,
-    // )));
 
     if detail.missing_months.is_empty() {
         summary_lines.push(Line::from(Span::styled(
