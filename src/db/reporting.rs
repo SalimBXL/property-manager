@@ -111,15 +111,19 @@ pub fn list_expense_lines_for_property(
     property_id: i64,
 ) -> AppResult<Vec<ExpenseLine>> {
     let mut stmt = conn.prepare(
-        "SELECT category, expense_date, recurring, amount_cents AS allocated, amount_cents AS total, 0 AS is_indirect
-         FROM expense
-         WHERE property_id = ?1 AND expense_type = 'direct'
-         UNION ALL
-         SELECT e.category, e.expense_date, e.recurring, ea.amount_cents AS allocated, e.amount_cents AS total, 1 AS is_indirect
-         FROM expense_allocation ea
-         JOIN expense e ON e.id = ea.expense_id
-         WHERE ea.property_id = ?1
-         ORDER BY expense_date"
+        "SELECT category, expense_date, recurring,
+            amount_cents AS allocated, amount_cents AS total,
+            0 AS is_indirect
+     FROM expense
+     WHERE property_id = ?1 AND expense_type = 'direct'
+     UNION ALL
+     SELECT e.category, e.expense_date, e.recurring,
+            ea.amount_cents AS allocated, e.amount_cents AS total,
+            1 AS is_indirect
+     FROM expense_allocation ea
+     JOIN expense e ON e.id = ea.expense_id
+     WHERE ea.property_id = ?1
+     ORDER BY expense_date",
     )?;
 
     let raw_rows = stmt.query_map(params![property_id], |row| {
