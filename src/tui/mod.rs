@@ -8,12 +8,17 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 
+use chrono::NaiveDate;
+use rusqlite::Connection;
+
 use property_manager::db;
 use property_manager::db::reporting::{
-    PropertyDetail, all_overdue_leases, all_properties_profitability, property_detail,
+    OverdueLease, PropertyDetail, PropertyProfitability, all_overdue_leases,
+    all_properties_profitability, property_detail,
 };
 use property_manager::db::repository::list_properties;
-use property_manager::error::AppResult;
+use property_manager::error::{AppError, AppResult};
+use property_manager::models::property::Property;
 
 mod ui;
 
@@ -35,68 +40,129 @@ pub fn run(db_path: &str) -> AppResult<()> {
     result
 }
 
+/// État mutable du dashboard : données chargées depuis la base + onglet
+/// actuellement sélectionné.
+struct DashboardState {
+    properties: Vec<Property>,
+    profitability: Vec<PropertyProfitability>,
+    overdue: Vec<OverdueLease>,
+    selected_tab: usize,
+}
+
+impl DashboardState {
+    fn load(conn: &Connection, today: NaiveDate) -> AppResult<Self> {
+        Ok(Self {
+            properties: list_properties(conn)?,
+            profitability: all_properties_profitability(conn)?,
+            overdue: all_overdue_leases(conn, today)?,
+            selected_tab: 0,
+        })
+    }
+
+    fn refresh(&mut self, conn: &Connection, today: NaiveDate) -> AppResult<()> {
+        self.properties = list_properties(conn)?;
+        self.profitability = all_properties_profitability(conn)?;
+        self.overdue = all_overdue_leases(conn, today)?;
+        // le bien affiché a peut-être été supprimé
+        if self.selected_tab >= self.tab_count() {
+            self.selected_tab = 0;
+        }
+        Ok(())
+    }
+
+    fn tab_count(&self) -> usize {
+        self.properties.len() + 1 // +1 pour "Vue d'ensemble"
+    }
+
+    fn tab_labels(&self) -> Vec<String> {
+        let mut labels = vec!["Vue d'ensemble".to_string()];
+        labels.extend(self.properties.iter().map(|p| p.label.clone()));
+        labels
+    }
+
+    fn detail(&self, conn: &Connection, today: NaiveDate) -> AppResult<Option<PropertyDetail>> {
+        if self.selected_tab == 0 {
+            return Ok(None);
+        }
+        let property_id = self.properties[self.selected_tab - 1].id.ok_or_else(|| {
+            AppError::Internal("un bien lu depuis la base doit toujours avoir un id".to_string())
+        })?;
+        Ok(Some(property_detail(conn, property_id, today)?))
+    }
+
+    fn move_right(&mut self) {
+        self.selected_tab = (self.selected_tab + 1) % self.tab_count();
+    }
+
+    fn move_left(&mut self) {
+        let count = self.tab_count();
+        self.selected_tab = if self.selected_tab == 0 {
+            count - 1
+        } else {
+            self.selected_tab - 1
+        };
+    }
+}
+
+enum LoopAction {
+    Continue,
+    Quit,
+}
+
+fn handle_key(
+    code: KeyCode,
+    state: &mut DashboardState,
+    conn: &Connection,
+    today: NaiveDate,
+) -> AppResult<LoopAction> {
+    match code {
+        KeyCode::Char('q') => Ok(LoopAction::Quit),
+        KeyCode::Char('r') => {
+            state.refresh(conn, today)?;
+            Ok(LoopAction::Continue)
+        }
+        KeyCode::Right => {
+            state.move_right();
+            Ok(LoopAction::Continue)
+        }
+        KeyCode::Left => {
+            state.move_left();
+            Ok(LoopAction::Continue)
+        }
+        _ => Ok(LoopAction::Continue),
+    }
+}
+
 fn event_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
-    conn: &rusqlite::Connection,
+    conn: &Connection,
 ) -> AppResult<()> {
     let today = chrono::Local::now().date_naive();
-
-    let mut properties = list_properties(conn)?;
-    let mut profitability = all_properties_profitability(conn)?;
-    let mut overdue = all_overdue_leases(conn, today)?;
-    let mut selected_tab: usize = 0;
+    let mut state = DashboardState::load(conn, today)?;
 
     loop {
-        let tab_count = properties.len() + 1; // +1 pour "Vue d'ensemble"
-        let mut tab_labels = vec!["Vue d'ensemble".to_string()];
-        tab_labels.extend(properties.iter().map(|p| p.label.clone()));
-
-        let detail: Option<PropertyDetail> = if selected_tab > 0 {
-            let property_id = properties[selected_tab - 1].id.ok_or_else(|| {
-                property_manager::error::AppError::Internal(
-                    "un bien lu depuis la base doit toujours avoir un id".to_string(),
-                )
-            })?;
-            Some(property_detail(conn, property_id, today)?)
-        } else {
-            None
-        };
+        let tab_labels = state.tab_labels();
+        let detail = state.detail(conn, today)?;
 
         terminal.draw(|frame| {
             ui::draw(
                 frame,
                 &tab_labels,
-                selected_tab,
-                (&profitability, &overdue),
+                state.selected_tab,
+                (&state.profitability, &state.overdue),
                 detail.as_ref(),
             )
         })?;
 
-        if event::poll(Duration::from_millis(250))?
-            && let Event::Key(key) = event::read()?
-        {
-            match key.code {
-                KeyCode::Char('q') => return Ok(()),
-                KeyCode::Char('r') => {
-                    properties = list_properties(conn)?;
-                    profitability = all_properties_profitability(conn)?;
-                    overdue = all_overdue_leases(conn, today)?;
-                    if selected_tab >= tab_count {
-                        selected_tab = 0; // le bien affiché a peut-être été supprimé
-                    }
-                }
-                KeyCode::Right => {
-                    selected_tab = (selected_tab + 1) % tab_count;
-                }
-                KeyCode::Left => {
-                    selected_tab = if selected_tab == 0 {
-                        tab_count - 1
-                    } else {
-                        selected_tab - 1
-                    };
-                }
-                _ => {}
-            }
+        if !event::poll(Duration::from_millis(250))? {
+            continue;
+        }
+        let Event::Key(key) = event::read()? else {
+            continue;
+        };
+
+        if let LoopAction::Quit = handle_key(key.code, &mut state, conn, today)? {
+            return Ok(());
         }
     }
 }
