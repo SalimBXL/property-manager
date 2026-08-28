@@ -173,4 +173,4 @@ La suite de tests couvre :
 
 ## Licence
 
-À définir.
+À définir plus tard.
