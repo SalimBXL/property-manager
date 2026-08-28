@@ -68,30 +68,30 @@ fn event_loop(
             )
         })?;
 
-        if event::poll(Duration::from_millis(250))? {
-            if let Event::Key(key) = event::read()? {
-                match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Char('r') => {
-                        properties = list_properties(conn)?;
-                        profitability = all_properties_profitability(conn)?;
-                        overdue = all_overdue_leases(conn, today)?;
-                        if selected_tab >= tab_count {
-                            selected_tab = 0; // le bien affiché a peut-être été supprimé
-                        }
+        if event::poll(Duration::from_millis(250))?
+            && let Event::Key(key) = event::read()?
+        {
+            match key.code {
+                KeyCode::Char('q') => return Ok(()),
+                KeyCode::Char('r') => {
+                    properties = list_properties(conn)?;
+                    profitability = all_properties_profitability(conn)?;
+                    overdue = all_overdue_leases(conn, today)?;
+                    if selected_tab >= tab_count {
+                        selected_tab = 0; // le bien affiché a peut-être été supprimé
                     }
-                    KeyCode::Right => {
-                        selected_tab = (selected_tab + 1) % tab_count;
-                    }
-                    KeyCode::Left => {
-                        selected_tab = if selected_tab == 0 {
-                            tab_count - 1
-                        } else {
-                            selected_tab - 1
-                        };
-                    }
-                    _ => {}
                 }
+                KeyCode::Right => {
+                    selected_tab = (selected_tab + 1) % tab_count;
+                }
+                KeyCode::Left => {
+                    selected_tab = if selected_tab == 0 {
+                        tab_count - 1
+                    } else {
+                        selected_tab - 1
+                    };
+                }
+                _ => {}
             }
         }
     }
