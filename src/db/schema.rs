@@ -14,11 +14,19 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
 
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY,
-            property_id INTEGER NOT NULL REFERENCES property(id),
+            property_id INTEGER REFERENCES property(id), -- NULL si frais indirect
             category TEXT NOT NULL,
-            amount_cents INTEGER NOT NULL,
+            amount_cents INTEGER NOT NULL,   -- montant TOTAL du frais
             expense_date TEXT NOT NULL,
-            recurring INTEGER NOT NULL DEFAULT 0
+            recurring INTEGER NOT NULL DEFAULT 0,
+            expense_type TEXT NOT NULL DEFAULT 'direct' -- 'direct' | 'indirect'
+        );
+
+        CREATE TABLE IF NOT EXISTS expense_allocation (
+            id INTEGER PRIMARY KEY,
+            expense_id INTEGER NOT NULL REFERENCES expense(id),
+            property_id INTEGER NOT NULL REFERENCES property(id),
+            amount_cents INTEGER NOT NULL  -- part de ce bien dans le frais indirect
         );
 
         CREATE TABLE IF NOT EXISTS tenant (

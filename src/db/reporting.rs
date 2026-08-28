@@ -1,9 +1,8 @@
 use crate::db::repository::{
-    active_lease_for_property, get_property, list_expenses_for_property, list_leases_for_property,
-    list_payments_for_lease, total_expenses_for_property,
+    active_lease_for_property, get_property, list_leases_for_property, list_payments_for_lease,
+    total_expenses_for_property,
 };
 use crate::error::AppResult;
-use crate::models::expense::Expense;
 use crate::models::lease::Lease;
 use crate::models::property::Property;
 use chrono::{Datelike, NaiveDate};
@@ -27,8 +26,13 @@ pub fn all_properties_profitability(conn: &Connection) -> AppResult<Vec<Property
              GROUP BY l.property_id
          ) rent ON rent.property_id = p.id
          LEFT JOIN (
-             SELECT property_id, SUM(amount_cents) AS total
-             FROM expense
+             SELECT property_id, SUM(amt) AS total FROM (
+                 SELECT property_id, amount_cents AS amt
+                 FROM expense WHERE expense_type = 'direct'
+                 UNION ALL
+                 SELECT property_id, amount_cents AS amt
+                 FROM expense_allocation
+             ) combined
              GROUP BY property_id
          ) exp ON exp.property_id = p.id
          ORDER BY p.label",
@@ -49,6 +53,57 @@ pub fn all_properties_profitability(conn: &Connection) -> AppResult<Vec<Property
     })?;
 
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
+}
+
+pub struct ExpenseLine {
+    pub category: String,
+    pub expense_date: NaiveDate,
+    pub recurring: bool,
+    pub is_indirect: bool,
+    pub allocated_amount_cents: i64, // part de CE bien
+    pub total_amount_cents: i64,     // montant total du frais (== allocated si direct)
+}
+
+pub fn list_expense_lines_for_property(
+    conn: &Connection,
+    property_id: i64,
+) -> AppResult<Vec<ExpenseLine>> {
+    let mut stmt = conn.prepare(
+        "SELECT category, expense_date, recurring, amount_cents AS allocated, amount_cents AS total, 0 AS is_indirect
+         FROM expense
+         WHERE property_id = ?1 AND expense_type = 'direct'
+         UNION ALL
+         SELECT e.category, e.expense_date, e.recurring, ea.amount_cents AS allocated, e.amount_cents AS total, 1 AS is_indirect
+         FROM expense_allocation ea
+         JOIN expense e ON e.id = ea.expense_id
+         WHERE ea.property_id = ?1
+         ORDER BY expense_date"
+    )?;
+
+    let raw_rows = stmt.query_map(params![property_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, i64>(4)?,
+            row.get::<_, i64>(5)?,
+        ))
+    })?;
+
+    let mut lines = Vec::new();
+    for row in raw_rows {
+        let (category, date_str, recurring_int, allocated, total, is_indirect_int) = row?;
+        lines.push(ExpenseLine {
+            category,
+            expense_date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?,
+            recurring: recurring_int != 0,
+            is_indirect: is_indirect_int != 0,
+            allocated_amount_cents: allocated,
+            total_amount_cents: total,
+        });
+    }
+    Ok(lines)
 }
 
 pub struct PropertyProfitability {
@@ -162,16 +217,14 @@ pub fn missing_rent_months(
     Ok(missing)
 }
 
-// src/db/reporting.rs
-
 pub struct PropertyDetail {
     pub property: Property,
-    pub expenses: Vec<Expense>,
+    pub expenses: Vec<ExpenseLine>, // était Vec<Expense>
     pub leases: Vec<Lease>,
     pub total_rent_collected: i64,
     pub total_expenses: i64,
     pub net_result: i64,
-    pub missing_months: Vec<String>, // vide si pas de bail actif ou à jour
+    pub missing_months: Vec<String>,
 }
 
 pub fn property_detail(
@@ -180,7 +233,7 @@ pub fn property_detail(
     up_to: NaiveDate,
 ) -> AppResult<PropertyDetail> {
     let property = get_property(conn, property_id)?;
-    let expenses = list_expenses_for_property(conn, property_id)?;
+    let expenses = list_expense_lines_for_property(conn, property_id)?; // changé
     let leases = list_leases_for_property(conn, property_id)?;
     let profitability = property_profitability(conn, property_id)?;
 

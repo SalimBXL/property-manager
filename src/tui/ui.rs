@@ -180,25 +180,41 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .block(Block::default().borders(Borders::ALL).title(" Résumé "));
     frame.render_widget(summary, chunks[0]);
 
-    let header = Row::new(vec!["Catégorie", "Montant", "Date", "Récurrente"])
+    let header = Row::new(vec!["Catégorie", "Montant", "Date", "Récurrente", "Type"])
         .style(Style::default().add_modifier(Modifier::BOLD));
     let rows: Vec<Row> = detail
         .expenses
         .iter()
         .map(|e| {
+            let amount_display = if e.is_indirect {
+                format!(
+                    "{:.2} € (sur {:.2} €)",
+                    e.allocated_amount_cents as f64 / 100.0,
+                    e.total_amount_cents as f64 / 100.0
+                )
+            } else {
+                format!("{:.2} €", e.allocated_amount_cents as f64 / 100.0)
+            };
+            let type_style = if e.is_indirect {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default()
+            };
             Row::new(vec![
                 Cell::from(e.category.clone()),
-                Cell::from(format!("{:.2} €", e.amount_cents as f64 / 100.0)),
+                Cell::from(amount_display),
                 Cell::from(e.expense_date.to_string()),
                 Cell::from(if e.recurring { "oui" } else { "non" }),
+                Cell::from(if e.is_indirect { "indirect" } else { "direct" }).style(type_style),
             ])
         })
         .collect();
     let widths = [
-        Constraint::Percentage(40),
+        Constraint::Percentage(25),
+        Constraint::Percentage(25),
         Constraint::Percentage(20),
-        Constraint::Percentage(20),
-        Constraint::Percentage(20),
+        Constraint::Percentage(15),
+        Constraint::Percentage(15),
     ];
     let table = Table::new(rows, widths)
         .header(header)

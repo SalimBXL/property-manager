@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("répartition impossible : aucun bien spécifié pour ce frais indirect")]
+    EmptyAllocation,
+
     #[error("erreur base de données : {0}")]
     Database(#[from] rusqlite::Error),
 

@@ -25,6 +25,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Enregistrer un frais indirect, réparti à parts égales entre plusieurs biens
+    AddIndirectExpense {
+        category: String,
+        /// Montant total en euros
+        amount: f64,
+        /// Date au format YYYY-MM-DD
+        date: String,
+        /// Ids des biens concernés, séparés par des virgules (ex. 1,2,3)
+        #[arg(long, value_delimiter = ',')]
+        properties: Vec<i64>,
+        #[arg(long)]
+        recurring: bool,
+    },
+
     /// Afficher le dashboard interactif dans le terminal
     Dashboard,
 
@@ -116,6 +130,28 @@ fn main() -> AppResult<()> {
     let cli = Cli::parse();
     let conn = db::open(&cli.db_path)?;
     match cli.command {
+        Command::AddIndirectExpense {
+            category,
+            amount,
+            date,
+            properties,
+            recurring,
+        } => {
+            let id = insert_indirect_expense(
+                &conn,
+                &category,
+                euros_to_cents(amount),
+                parse_date(&date)?,
+                recurring,
+                &properties,
+            )?;
+            println!(
+                "Frais indirect enregistré (id {}), réparti sur {} bien(s)",
+                id,
+                properties.len()
+            );
+        }
+
         Command::Dashboard => {
             // Le dashboard gère sa propre connexion en interne
             drop(conn);
@@ -141,18 +177,19 @@ fn main() -> AppResult<()> {
         }
 
         Command::ListExpenses { property_id } => {
-            let expenses = list_expenses_for_property(&conn, property_id)?;
+            let expenses = list_expense_lines_for_property(&conn, property_id)?;
             if expenses.is_empty() {
                 println!("Aucune dépense enregistrée pour ce bien.");
             }
             for e in expenses {
+                let tag = if e.is_indirect { " [indirect]" } else { "" };
                 println!(
-                    "[{}] {} — {:.2} € — {}{}",
-                    e.id.unwrap(),
+                    "{} — {:.2} € — {}{}{}",
                     e.category,
-                    e.amount_cents as f64 / 100.0,
+                    e.allocated_amount_cents as f64 / 100.0,
                     e.expense_date,
-                    if e.recurring { " (récurrente)" } else { "" }
+                    if e.recurring { " (récurrente)" } else { "" },
+                    tag
                 );
             }
         }

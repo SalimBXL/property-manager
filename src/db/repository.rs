@@ -6,6 +6,7 @@ use crate::models::lease::Lease;
 use crate::models::property::Property;
 use crate::models::rent_payment::RentPayment;
 use crate::models::tenant::Tenant;
+use chrono::NaiveDate;
 
 // ---------- Property ----------
 
@@ -61,16 +62,70 @@ pub fn delete_property(conn: &Connection, id: i64) -> AppResult<()> {
 
 // ---------- Expense ----------
 
+/// Répartit un montant en centimes en `n` parts aussi égales que possible.
+/// Le reste (dû à la division entière) est distribué aux premières parts,
+/// pour garantir que la somme des parts == montant total au centime près.
+fn split_evenly(total_cents: i64, n: usize) -> Vec<i64> {
+    let base = total_cents / n as i64;
+    let remainder = total_cents % n as i64;
+    (0..n as i64)
+        .map(|i| if i < remainder { base + 1 } else { base })
+        .collect()
+}
+
+pub fn insert_indirect_expense(
+    conn: &Connection,
+    category: &str,
+    total_amount_cents: i64,
+    expense_date: NaiveDate,
+    recurring: bool,
+    property_ids: &[i64],
+) -> AppResult<i64> {
+    if property_ids.is_empty() {
+        return Err(AppError::EmptyAllocation);
+    }
+
+    let shares = split_evenly(total_amount_cents, property_ids.len());
+
+    // unchecked_transaction : disponible sur &Connection (pas besoin de &mut),
+    // cohérent avec le reste du repository qui prend &Connection partout.
+    let tx = conn.unchecked_transaction()?;
+
+    tx.execute(
+        "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring, expense_type)
+         VALUES (NULL, ?1, ?2, ?3, ?4, 'indirect')",
+        params![
+            category,
+            total_amount_cents,
+            expense_date.format("%Y-%m-%d").to_string(),
+            recurring as i64,
+        ],
+    )?;
+    let expense_id = tx.last_insert_rowid();
+
+    for (property_id, share) in property_ids.iter().zip(shares.iter()) {
+        tx.execute(
+            "INSERT INTO expense_allocation (expense_id, property_id, amount_cents)
+             VALUES (?1, ?2, ?3)",
+            params![expense_id, property_id, share],
+        )?;
+    }
+
+    tx.commit()?;
+    Ok(expense_id)
+}
+
 pub fn insert_expense(conn: &Connection, e: &Expense) -> AppResult<i64> {
     conn.execute(
-        "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
+        "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring, expense_type)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             e.property_id,
             e.category,
             e.amount_cents,
             e.expense_date.format("%Y-%m-%d").to_string(),
             e.recurring as i64,
+            e.expense_type.as_str(),
         ],
     )?;
     Ok(conn.last_insert_rowid())
@@ -87,7 +142,12 @@ pub fn list_expenses_for_property(conn: &Connection, property_id: i64) -> AppRes
 
 pub fn total_expenses_for_property(conn: &Connection, property_id: i64) -> AppResult<i64> {
     Ok(conn.query_row(
-        "SELECT COALESCE(SUM(amount_cents), 0) FROM expense WHERE property_id = ?1",
+        "SELECT
+            COALESCE((SELECT SUM(amount_cents) FROM expense
+                      WHERE property_id = ?1 AND expense_type = 'direct'), 0)
+            +
+            COALESCE((SELECT SUM(amount_cents) FROM expense_allocation
+                      WHERE property_id = ?1), 0)",
         params![property_id],
         |row| row.get(0),
     )?)
@@ -214,6 +274,49 @@ mod tests {
     use super::*;
     use crate::db;
     use chrono::NaiveDate;
+
+    #[test]
+    fn test_indirect_expense_split_and_totals() {
+        let conn = db::open_in_memory().unwrap();
+
+        let p1 = Property::new(
+            "Parking A".to_string(),
+            "Rue A".to_string(),
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            1_000_000,
+            None,
+        );
+        let p1_id = insert_property(&conn, &p1).unwrap();
+
+        let p2 = Property::new(
+            "Parking B".to_string(),
+            "Rue B".to_string(),
+            NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            1_000_000,
+            None,
+        );
+        let p2_id = insert_property(&conn, &p2).unwrap();
+
+        // Syndic de 100.01 € réparti sur 2 biens : 50.01 € et 50.00 €
+        insert_indirect_expense(
+            &conn,
+            "syndic",
+            10_001,
+            NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
+            true,
+            &[p1_id, p2_id],
+        )
+        .unwrap();
+
+        let total_p1 = total_expenses_for_property(&conn, p1_id).unwrap();
+        let total_p2 = total_expenses_for_property(&conn, p2_id).unwrap();
+
+        // La somme des deux parts doit reconstituer exactement le total, centime près
+        assert_eq!(total_p1 + total_p2, 10_001);
+        // Le reste (1 centime) va à la première propriété de la liste
+        assert_eq!(total_p1, 5_001);
+        assert_eq!(total_p2, 5_000);
+    }
 
     #[test]
     fn test_insert_and_get_property() {
