@@ -27,11 +27,13 @@ fn test_indirect_expense_split_and_totals() {
     // Syndic de 100.01 € réparti sur 2 biens : 50.01 € et 50.00 €
     insert_indirect_expense(
         &conn,
-        "syndic",
-        10_001,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        true,
-        &[p1_id, p2_id],
+        &IndirectExpenseInput {
+            category: "syndic".to_string(),
+            total_amount_cents: 10_001,
+            expense_date: NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
+            recurring: true,
+            property_ids: vec![p1_id, p2_id],
+        },
     )
     .unwrap();
 

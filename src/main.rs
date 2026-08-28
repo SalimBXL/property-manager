@@ -137,18 +137,20 @@ fn main() -> AppResult<()> {
             properties,
             recurring,
         } => {
+            let count = properties.len();
             let id = insert_indirect_expense(
                 &conn,
-                &category,
-                euros_to_cents(amount),
-                parse_date(&date)?,
-                recurring,
-                &properties,
+                &IndirectExpenseInput {
+                    category,
+                    total_amount_cents: euros_to_cents(amount),
+                    expense_date: parse_date(&date)?,
+                    recurring,
+                    property_ids: properties,
+                },
             )?;
             println!(
                 "Frais indirect enregistré (id {}), réparti sur {} bien(s)",
-                id,
-                properties.len()
+                id, count
             );
         }
 

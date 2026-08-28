@@ -73,37 +73,36 @@ fn split_evenly(total_cents: i64, n: usize) -> Vec<i64> {
         .collect()
 }
 
-pub fn insert_indirect_expense(
-    conn: &Connection,
-    category: &str,
-    total_amount_cents: i64,
-    expense_date: NaiveDate,
-    recurring: bool,
-    property_ids: &[i64],
-) -> AppResult<i64> {
-    if property_ids.is_empty() {
+pub struct IndirectExpenseInput {
+    pub category: String,
+    pub total_amount_cents: i64,
+    pub expense_date: NaiveDate,
+    pub recurring: bool,
+    pub property_ids: Vec<i64>,
+}
+
+pub fn insert_indirect_expense(conn: &Connection, input: &IndirectExpenseInput) -> AppResult<i64> {
+    if input.property_ids.is_empty() {
         return Err(AppError::EmptyAllocation);
     }
 
-    let shares = split_evenly(total_amount_cents, property_ids.len());
+    let shares = split_evenly(input.total_amount_cents, input.property_ids.len());
 
-    // unchecked_transaction : disponible sur &Connection (pas besoin de &mut),
-    // cohérent avec le reste du repository qui prend &Connection partout.
     let tx = conn.unchecked_transaction()?;
 
     tx.execute(
         "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring, expense_type)
          VALUES (NULL, ?1, ?2, ?3, ?4, 'indirect')",
         params![
-            category,
-            total_amount_cents,
-            expense_date.format("%Y-%m-%d").to_string(),
-            recurring as i64,
+            input.category,
+            input.total_amount_cents,
+            input.expense_date.format("%Y-%m-%d").to_string(),
+            input.recurring as i64,
         ],
     )?;
     let expense_id = tx.last_insert_rowid();
 
-    for (property_id, share) in property_ids.iter().zip(shares.iter()) {
+    for (property_id, share) in input.property_ids.iter().zip(shares.iter()) {
         tx.execute(
             "INSERT INTO expense_allocation (expense_id, property_id, amount_cents)
              VALUES (?1, ?2, ?3)",
