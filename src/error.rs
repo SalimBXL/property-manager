@@ -2,6 +2,12 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("le bien (id {0}) a déjà un bail actif")]
+    PropertyAlreadyHasActiveLease(i64),
+
+    #[error("le bien (id {0}) apparaît plusieurs fois dans la répartition du frais indirect")]
+    DuplicatePropertyAllocation(i64),
+
     #[error("montant invalide : {0} centimes (doit être positif ou nul)")]
     InvalidAmount(i64),
 

@@ -404,7 +404,7 @@ fn handle_add_lease(
         euros_to_cents(monthly_rent),
         parse_date(&start_date)?,
         None,
-    );
+    )?;
     let id = insert_lease(conn, &lease)?;
     println!("Bail créé avec l'id {}", id);
     Ok(())
@@ -430,7 +430,7 @@ fn handle_add_payment(
     date: String,
     period: String,
 ) -> AppResult<()> {
-    let payment = RentPayment::new(lease_id, euros_to_cents(amount), parse_date(&date)?, period);
+    let payment = RentPayment::new(lease_id, euros_to_cents(amount), parse_date(&date)?, period)?;
     let id = insert_rent_payment(conn, &payment)?;
     println!("Paiement enregistré avec l'id {}", id);
     Ok(())

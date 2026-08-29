@@ -35,7 +35,8 @@ fn full_property_lifecycle() {
         9_000,
         NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let lease_id = insert_lease(&conn, &lease).unwrap();
 
     let active = active_lease_for_property(&conn, property_id).unwrap();
@@ -49,7 +50,7 @@ fn full_property_lifecycle() {
     ] {
         insert_rent_payment(
             &conn,
-            &RentPayment::new(lease_id, 9_000, date, month.to_string()),
+            &RentPayment::new(lease_id, 9_000, date, month.to_string()).unwrap(),
         )
         .unwrap();
     }

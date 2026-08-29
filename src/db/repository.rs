@@ -62,9 +62,29 @@ pub fn delete_property(conn: &Connection, id: i64) -> AppResult<()> {
 
 // ---------- Expense ----------
 
+/// Code SQLite étendu pour une violation de contrainte CHECK, distinct de
+/// SQLITE_CONSTRAINT_FOREIGNKEY (787) qui peut survenir légitimement si un
+/// property_id inexistant est fourni par l'utilisateur.
+const SQLITE_CONSTRAINT_CHECK: i32 = 275;
+
+fn map_expense_constraint_error(e: rusqlite::Error) -> AppError {
+    match &e {
+        rusqlite::Error::SqliteFailure(err, _) if err.extended_code == SQLITE_CONSTRAINT_CHECK => {
+            AppError::Internal(
+                "incohérence entre le type de frais et le bien associé (bug interne, \
+                 ne devrait jamais se produire si ExpenseTarget est construit correctement)"
+                    .to_string(),
+            )
+        }
+        _ => AppError::Database(e),
+    }
+}
+
 /// Répartit un montant en centimes en `n` parts aussi égales que possible.
 /// Le reste (dû à la division entière) est distribué aux premières parts,
 /// pour garantir que la somme des parts == montant total au centime près.
+///
+/// Précondition : `total_cents >= 0` (non vérifié ici, à valider par l'appelant).
 fn split_evenly(total_cents: i64, n: usize) -> Vec<i64> {
     let base = total_cents / n as i64;
     let remainder = total_cents % n as i64;
@@ -86,20 +106,33 @@ pub fn insert_indirect_expense(conn: &Connection, input: &IndirectExpenseInput) 
         return Err(AppError::EmptyAllocation);
     }
 
+    if input.total_amount_cents < 0 {
+        return Err(AppError::InvalidAmount(input.total_amount_cents));
+    }
+
+    let mut sorted_ids = input.property_ids.clone();
+
+    sorted_ids.sort_unstable();
+
+    if let Some(window) = sorted_ids.windows(2).find(|w| w[0] == w[1]) {
+        return Err(AppError::DuplicatePropertyAllocation(window[0]));
+    }
+
     let shares = split_evenly(input.total_amount_cents, input.property_ids.len());
 
     let tx = conn.unchecked_transaction()?;
 
     tx.execute(
         "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring, expense_type)
-         VALUES (NULL, ?1, ?2, ?3, ?4, 'indirect')",
+        VALUES (NULL, ?1, ?2, ?3, ?4, 'indirect')",
         params![
             input.category,
             input.total_amount_cents,
             input.expense_date.format("%Y-%m-%d").to_string(),
             input.recurring as i64,
         ],
-    )?;
+    )
+    .map_err(map_expense_constraint_error)?;
     let expense_id = tx.last_insert_rowid();
 
     for (property_id, share) in input.property_ids.iter().zip(shares.iter()) {
@@ -126,7 +159,8 @@ pub fn insert_expense(conn: &Connection, e: &Expense) -> AppResult<i64> {
             e.recurring() as i64,
             e.target().type_str(),
         ],
-    )?;
+    )
+    .map_err(map_expense_constraint_error)?;
     Ok(conn.last_insert_rowid())
 }
 
@@ -175,6 +209,9 @@ pub fn list_leases_for_property(conn: &Connection, property_id: i64) -> AppResul
     Ok(rows.collect::<Result<Vec<_>, _>>()?)
 }
 
+/// Code SQLite étendu pour une violation de contrainte UNIQUE (index ou colonne).
+const SQLITE_CONSTRAINT_UNIQUE: i32 = 2067;
+
 pub fn insert_lease(conn: &Connection, l: &Lease) -> AppResult<i64> {
     conn.execute(
         "INSERT INTO lease (property_id, tenant_id, monthly_rent_cents, start_date, end_date)
@@ -186,7 +223,13 @@ pub fn insert_lease(conn: &Connection, l: &Lease) -> AppResult<i64> {
             l.start_date.format("%Y-%m-%d").to_string(),
             l.end_date.map(|d| d.format("%Y-%m-%d").to_string()),
         ],
-    )?;
+    )
+    .map_err(|e| match &e {
+        rusqlite::Error::SqliteFailure(err, _) if err.extended_code == SQLITE_CONSTRAINT_UNIQUE => {
+            AppError::PropertyAlreadyHasActiveLease(l.property_id)
+        }
+        _ => AppError::Database(e),
+    })?;
     Ok(conn.last_insert_rowid())
 }
 

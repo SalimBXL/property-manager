@@ -40,7 +40,8 @@ fn portfolio_overview_with_mixed_situations() {
         8_000,
         NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let l1_id = insert_lease(&conn, &l1).unwrap();
 
     for (month, date) in [
@@ -50,7 +51,7 @@ fn portfolio_overview_with_mixed_situations() {
     ] {
         insert_rent_payment(
             &conn,
-            &RentPayment::new(l1_id, 8_000, date, month.to_string()),
+            &RentPayment::new(l1_id, 8_000, date, month.to_string()).unwrap(),
         )
         .unwrap();
     }
@@ -88,7 +89,8 @@ fn portfolio_overview_with_mixed_situations() {
         7_500,
         NaiveDate::from_ymd_opt(2022, 11, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let l2_id = insert_lease(&conn, &l2).unwrap();
 
     // Novembre et décembre payés, janvier oublié
@@ -99,7 +101,8 @@ fn portfolio_overview_with_mixed_situations() {
             7_500,
             NaiveDate::from_ymd_opt(2022, 11, 5).unwrap(),
             "2022-11".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
     insert_rent_payment(
@@ -109,7 +112,8 @@ fn portfolio_overview_with_mixed_situations() {
             7_500,
             NaiveDate::from_ymd_opt(2022, 12, 4).unwrap(),
             "2022-12".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 

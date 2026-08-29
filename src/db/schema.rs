@@ -9,24 +9,32 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             address TEXT NOT NULL,
             purchase_date TEXT NOT NULL,
             purchase_price_cents INTEGER NOT NULL,
-            notes TEXT
+            notes TEXT,
+            CHECK (purchase_price_cents >= 0)
         );
 
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY,
-            property_id INTEGER REFERENCES property(id), -- NULL si frais indirect
+            property_id INTEGER REFERENCES property(id),
             category TEXT NOT NULL,
-            amount_cents INTEGER NOT NULL,   -- montant TOTAL du frais
+            amount_cents INTEGER NOT NULL,
             expense_date TEXT NOT NULL,
             recurring INTEGER NOT NULL DEFAULT 0,
-            expense_type TEXT NOT NULL DEFAULT 'direct' -- 'direct' | 'indirect'
+            expense_type TEXT NOT NULL DEFAULT 'direct',
+            CHECK (amount_cents >= 0),
+            CHECK (
+                (expense_type = 'direct' AND property_id IS NOT NULL)
+                OR
+                (expense_type = 'indirect' AND property_id IS NULL)
+            )
         );
 
         CREATE TABLE IF NOT EXISTS expense_allocation (
             id INTEGER PRIMARY KEY,
             expense_id INTEGER NOT NULL REFERENCES expense(id),
             property_id INTEGER NOT NULL REFERENCES property(id),
-            amount_cents INTEGER NOT NULL  -- part de ce bien dans le frais indirect
+            amount_cents INTEGER NOT NULL,
+            CHECK (amount_cents >= 0)
         );
 
         CREATE TABLE IF NOT EXISTS tenant (
@@ -41,15 +49,22 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             tenant_id INTEGER NOT NULL REFERENCES tenant(id),
             monthly_rent_cents INTEGER NOT NULL,
             start_date TEXT NOT NULL,
-            end_date TEXT
+            end_date TEXT,
+            CHECK (monthly_rent_cents >= 0)
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        idx_one_active_lease_per_property
+        ON lease(property_id)
+        WHERE end_date IS NULL;
 
         CREATE TABLE IF NOT EXISTS rent_payment (
             id INTEGER PRIMARY KEY,
             lease_id INTEGER NOT NULL REFERENCES lease(id),
             amount_cents INTEGER NOT NULL,
             payment_date TEXT NOT NULL,
-            period_month TEXT NOT NULL
+            period_month TEXT NOT NULL,
+            CHECK (amount_cents >= 0)
         );
         ",
     )

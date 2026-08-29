@@ -1,3 +1,4 @@
+use crate::error::{AppError, AppResult};
 use chrono::NaiveDate;
 use rusqlite::{Result as SqlResult, Row};
 
@@ -16,14 +17,17 @@ impl RentPayment {
         amount_cents: i64,
         payment_date: NaiveDate,
         period_month: String,
-    ) -> Self {
-        RentPayment {
+    ) -> AppResult<Self> {
+        if amount_cents < 0 {
+            return Err(AppError::InvalidAmount(amount_cents));
+        }
+        Ok(RentPayment {
             id: None,
             lease_id,
             amount_cents,
             payment_date,
             period_month,
-        }
+        })
     }
 
     pub fn from_row(row: &Row) -> SqlResult<Self> {

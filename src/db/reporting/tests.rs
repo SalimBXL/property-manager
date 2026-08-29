@@ -31,7 +31,8 @@ fn test_property_profitability() {
         8_000,
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let lease_id = insert_lease(&conn, &l).unwrap();
 
     insert_rent_payment(
@@ -41,7 +42,8 @@ fn test_property_profitability() {
             8_000,
             NaiveDate::from_ymd_opt(2024, 1, 3).unwrap(),
             "2024-01".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
     insert_rent_payment(
@@ -51,7 +53,8 @@ fn test_property_profitability() {
             8_000,
             NaiveDate::from_ymd_opt(2024, 2, 3).unwrap(),
             "2024-02".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 
@@ -95,7 +98,8 @@ fn test_missing_rent_months_crosses_year() {
         7_500,
         NaiveDate::from_ymd_opt(2023, 11, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let lease_id = insert_lease(&conn, &l).unwrap();
 
     insert_rent_payment(
@@ -105,7 +109,8 @@ fn test_missing_rent_months_crosses_year() {
             7_500,
             NaiveDate::from_ymd_opt(2023, 11, 5).unwrap(),
             "2023-11".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
     insert_rent_payment(
@@ -115,7 +120,8 @@ fn test_missing_rent_months_crosses_year() {
             7_500,
             NaiveDate::from_ymd_opt(2024, 1, 4).unwrap(),
             "2024-01".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 
@@ -147,7 +153,8 @@ fn test_all_properties_profitability() {
         8_000,
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let l1_id = insert_lease(&conn, &l1).unwrap();
     insert_rent_payment(
         &conn,
@@ -156,7 +163,8 @@ fn test_all_properties_profitability() {
             8_000,
             NaiveDate::from_ymd_opt(2024, 1, 3).unwrap(),
             "2024-01".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
     insert_expense(
@@ -220,7 +228,8 @@ fn test_all_overdue_leases() {
         8_000,
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let l1_id = insert_lease(&conn, &l1).unwrap();
     insert_rent_payment(
         &conn,
@@ -229,7 +238,8 @@ fn test_all_overdue_leases() {
             8_000,
             NaiveDate::from_ymd_opt(2024, 1, 3).unwrap(),
             "2024-01".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 }
@@ -256,7 +266,8 @@ fn test_all_overdue_leases_mois_manquant() {
         7_500,
         NaiveDate::from_ymd_opt(2023, 11, 1).unwrap(),
         None,
-    );
+    )
+    .unwrap();
     let l2_id = insert_lease(&conn, &l2).unwrap();
     insert_rent_payment(
         &conn,
@@ -265,7 +276,8 @@ fn test_all_overdue_leases_mois_manquant() {
             7_500,
             NaiveDate::from_ymd_opt(2023, 11, 5).unwrap(),
             "2023-11".to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 }
