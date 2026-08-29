@@ -12,7 +12,6 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             notes TEXT,
             CHECK (purchase_price_cents >= 0)
         );
-
         CREATE TABLE IF NOT EXISTS expense (
             id INTEGER PRIMARY KEY,
             property_id INTEGER REFERENCES property(id),
@@ -28,7 +27,6 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
                 (expense_type = 'indirect' AND property_id IS NULL)
             )
         );
-
         CREATE TABLE IF NOT EXISTS expense_allocation (
             id INTEGER PRIMARY KEY,
             expense_id INTEGER NOT NULL REFERENCES expense(id),
@@ -36,13 +34,11 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             amount_cents INTEGER NOT NULL,
             CHECK (amount_cents >= 0)
         );
-
         CREATE TABLE IF NOT EXISTS tenant (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             contact TEXT
         );
-
         CREATE TABLE IF NOT EXISTS lease (
             id INTEGER PRIMARY KEY,
             property_id INTEGER NOT NULL REFERENCES property(id),
@@ -53,12 +49,10 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             CHECK (monthly_rent_cents >= 0),
             CHECK (end_date IS NULL OR end_date >= start_date)
         );
-
         CREATE UNIQUE INDEX IF NOT EXISTS
         idx_one_active_lease_per_property
         ON lease(property_id)
         WHERE end_date IS NULL;
-
         CREATE TABLE IF NOT EXISTS rent_payment (
             id INTEGER PRIMARY KEY,
             lease_id INTEGER NOT NULL REFERENCES lease(id),

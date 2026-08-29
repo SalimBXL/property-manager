@@ -12,7 +12,6 @@ use crate::models::tenant::Tenant;
 #[test]
 fn test_property_profitability() {
     let conn = db::open_in_memory().unwrap();
-
     let p = Property::new(
         "Parking A12".to_string(),
         "Rue de la Gare 10".to_string(),
@@ -22,7 +21,6 @@ fn test_property_profitability() {
     )
     .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
-
     let t = Tenant::new("Jean Dupont".to_string(), None);
     let tenant_id = insert_tenant(&conn, &t).unwrap();
     let l = Lease::new(
@@ -46,6 +44,7 @@ fn test_property_profitability() {
         .unwrap(),
     )
     .unwrap();
+
     insert_rent_payment(
         &conn,
         &RentPayment::new(
@@ -134,8 +133,6 @@ fn test_missing_rent_months_crosses_year() {
 #[test]
 fn test_all_properties_profitability() {
     let conn = db::open_in_memory().unwrap();
-
-    // Bien 1 : loyers + dépenses
     let p1 = Property::new(
         "Parking A12".to_string(),
         "Rue de la Gare 10".to_string(),
@@ -179,8 +176,6 @@ fn test_all_properties_profitability() {
         .unwrap(),
     )
     .unwrap();
-
-    // Bien 2 : ni loyer ni dépense, doit quand même apparaître avec des zéros
     let p2 = Property::new(
         "Parking B3".to_string(),
         "Rue du Marché 5".to_string(),
@@ -192,14 +187,11 @@ fn test_all_properties_profitability() {
     insert_property(&conn, &p2).unwrap();
 
     let results = all_properties_profitability(&conn).unwrap();
-
     assert_eq!(results.len(), 2);
-
     let r1 = results.iter().find(|r| r.property_id == p1_id).unwrap();
     assert_eq!(r1.total_rent_collected, 8_000);
     assert_eq!(r1.total_expenses, 3_000);
     assert_eq!(r1.net_result, 5_000);
-
     let r2 = results.iter().find(|r| r.label == "Parking B3").unwrap();
     assert_eq!(r2.total_rent_collected, 0);
     assert_eq!(r2.total_expenses, 0);
