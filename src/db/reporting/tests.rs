@@ -32,7 +32,6 @@ fn test_property_profitability() {
     )
     .unwrap();
     let lease_id = insert_lease(&conn, &l).unwrap();
-
     insert_rent_payment(
         &conn,
         &RentPayment::new(
@@ -44,7 +43,6 @@ fn test_property_profitability() {
         .unwrap(),
     )
     .unwrap();
-
     insert_rent_payment(
         &conn,
         &RentPayment::new(
@@ -56,7 +54,6 @@ fn test_property_profitability() {
         .unwrap(),
     )
     .unwrap();
-
     insert_expense(
         &conn,
         &Expense::new_direct(
@@ -69,7 +66,6 @@ fn test_property_profitability() {
         .unwrap(),
     )
     .unwrap();
-
     let result = property_profitability(&conn, property_id).unwrap();
     assert_eq!(result.total_rent_collected, 16_000);
     assert_eq!(result.total_expenses, 5_000);
@@ -185,7 +181,6 @@ fn test_all_properties_profitability() {
     )
     .unwrap();
     insert_property(&conn, &p2).unwrap();
-
     let results = all_properties_profitability(&conn).unwrap();
     assert_eq!(results.len(), 2);
     let r1 = results.iter().find(|r| r.property_id == p1_id).unwrap();
