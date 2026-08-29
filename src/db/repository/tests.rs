@@ -3,6 +3,18 @@ use crate::db;
 use chrono::NaiveDate;
 
 #[test]
+fn property_rejects_negative_purchase_price() {
+    let result = Property::new(
+        "Parking Invalide".to_string(),
+        "Rue Test".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        -500_000,
+        None,
+    );
+    assert!(matches!(result, Err(AppError::InvalidAmount(-500_000))));
+}
+
+#[test]
 fn test_indirect_expense_split_and_totals() {
     let conn = db::open_in_memory().unwrap();
 
@@ -12,7 +24,8 @@ fn test_indirect_expense_split_and_totals() {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         1_000_000,
         None,
-    );
+    )
+    .unwrap();
     let p1_id = insert_property(&conn, &p1).unwrap();
 
     let p2 = Property::new(
@@ -21,7 +34,8 @@ fn test_indirect_expense_split_and_totals() {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         1_000_000,
         None,
-    );
+    )
+    .unwrap();
     let p2_id = insert_property(&conn, &p2).unwrap();
 
     // Syndic de 100.01 € réparti sur 2 biens : 50.01 € et 50.00 €
@@ -56,13 +70,14 @@ fn test_insert_and_get_property() {
         NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
 
     let id = insert_property(&conn, &p).unwrap();
     let fetched = get_property(&conn, id).unwrap();
 
-    assert_eq!(fetched.label, "Parking A12");
-    assert_eq!(fetched.purchase_price_cents, 1_500_000);
+    assert_eq!(fetched.label(), "Parking A12");
+    assert_eq!(fetched.purchase_price_cents(), 1_500_000);
 }
 
 #[test]
@@ -74,7 +89,8 @@ fn test_expense_total() {
         NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
     let e1 = Expense::new(
@@ -109,7 +125,8 @@ fn test_insert_lease_with_tenant() {
         NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
     let t = Tenant::new(
@@ -145,7 +162,8 @@ fn test_no_active_lease_when_ended() {
         NaiveDate::from_ymd_opt(2023, 1, 10).unwrap(),
         1_200_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
     let t = Tenant::new("Marie Leroy".to_string(), None);
@@ -174,7 +192,8 @@ fn test_rent_payment_total() {
         NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
     let t = Tenant::new("Jean Dupont".to_string(), None);
@@ -219,7 +238,8 @@ fn deleting_property_with_dependents_is_blocked() {
         NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
         900_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &property).unwrap();
 
     let tenant = Tenant::new("Marc Petit".to_string(), None);
@@ -253,7 +273,8 @@ fn deleting_property_without_dependents_succeeds() {
         NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
         900_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &property).unwrap();
 
     delete_property(&conn, property_id).unwrap();

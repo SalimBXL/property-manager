@@ -360,7 +360,7 @@ fn handle_add_property(conn: &Connection, input: AddPropertyInput) -> AppResult<
         parse_date(&input.purchase_date)?,
         euros_to_cents(input.purchase_price),
         input.notes,
-    );
+    )?;
     let id = insert_property(conn, &property)?;
     println!("Bien créé avec l'id {}", id);
     Ok(())
@@ -374,11 +374,11 @@ fn handle_list_properties(conn: &Connection) -> AppResult<()> {
     for p in properties {
         println!(
             "[{}] {} — {} — acheté le {} pour {:.2} €",
-            p.id.unwrap(),
-            p.label,
-            p.address,
-            p.purchase_date,
-            p.purchase_price_cents as f64 / 100.0
+            p.id().unwrap(),
+            p.label(),
+            p.address(),
+            p.purchase_date(),
+            p.purchase_price_cents() as f64 / 100.0
         );
     }
     Ok(())

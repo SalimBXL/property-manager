@@ -15,11 +15,11 @@ pub fn insert_property(conn: &Connection, p: &Property) -> AppResult<i64> {
         "INSERT INTO property (label, address, purchase_date, purchase_price_cents, notes)
          VALUES (?1, ?2, ?3, ?4, ?5)",
         params![
-            p.label,
-            p.address,
-            p.purchase_date.format("%Y-%m-%d").to_string(),
-            p.purchase_price_cents,
-            p.notes,
+            p.label(),
+            p.address(),
+            p.purchase_date().format("%Y-%m-%d").to_string(),
+            p.purchase_price_cents(),
+            p.notes(),
         ],
     )?;
     Ok(conn.last_insert_rowid())

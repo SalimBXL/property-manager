@@ -1,5 +1,25 @@
 use chrono::NaiveDate;
 use rusqlite::{Result as SqlResult, Row};
+use std::str::FromStr;
+use thiserror::Error;
+
+impl FromStr for ExpenseType {
+    type Err = ExpenseTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "direct" => Ok(Self::Direct),
+            "indirect" => Ok(Self::Indirect),
+            _ => Err(ExpenseTypeError::InvalidValue(s.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ExpenseTypeError {
+    #[error("valeur de type de dépense invalide : '{0}'")]
+    InvalidValue(String),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpenseType {
@@ -12,13 +32,6 @@ impl ExpenseType {
         match self {
             ExpenseType::Direct => "direct",
             ExpenseType::Indirect => "indirect",
-        }
-    }
-
-    fn from_str(s: &str) -> Self {
-        match s {
-            "indirect" => ExpenseType::Indirect,
-            _ => ExpenseType::Direct,
         }
     }
 }
@@ -92,7 +105,36 @@ impl Expense {
                 },
             )?,
             recurring: recurring_int != 0,
-            expense_type: ExpenseType::from_str(&type_str),
+            expense_type: type_str.parse::<ExpenseType>().map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expense_type_from_str_accepts_known_values() {
+        assert!(matches!(
+            "direct".parse::<ExpenseType>(),
+            Ok(ExpenseType::Direct)
+        ));
+        assert!(matches!(
+            "indirect".parse::<ExpenseType>(),
+            Ok(ExpenseType::Indirect)
+        ));
+    }
+
+    #[test]
+    fn expense_type_from_str_rejects_invalid_value() {
+        let result = "bogus".parse::<ExpenseType>();
+        assert!(matches!(result, Err(ExpenseTypeError::InvalidValue(v)) if v == "bogus"));
     }
 }

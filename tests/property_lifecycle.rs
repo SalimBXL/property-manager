@@ -14,11 +14,12 @@ fn full_property_lifecycle() {
     // 1. Achat d'un bien
     let property = Property::new(
         "Parking C7".to_string(),
-        "Avenue Louise 200".to_string(),
-        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(),
-        1_800_000,
-        Some("Achat comptant".to_string()),
-    );
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
+        1_500_000,
+        None,
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &property).unwrap();
 
     // 2. Un locataire arrive, bail signé
@@ -68,7 +69,7 @@ fn full_property_lifecycle() {
 
     // 5. Vérifications finales : le bien existe bien avec les bonnes données
     let fetched = get_property(&conn, property_id).unwrap();
-    assert_eq!(fetched.label, "Parking C7");
+    assert_eq!(fetched.label(), "Parking C7");
 
     let total_rent = total_paid_for_lease(&conn, lease_id).unwrap();
     assert_eq!(total_rent, 27_000);

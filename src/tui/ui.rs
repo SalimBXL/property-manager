@@ -163,7 +163,8 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
     let mut summary_lines = vec![
         Line::from(format!(
             "{} — {}",
-            detail.property.label, detail.property.address
+            detail.property.label(),
+            detail.property.address()
         )),
         Line::from(vec![
             Span::raw(format!(

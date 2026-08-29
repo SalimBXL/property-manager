@@ -1,14 +1,15 @@
+use crate::error::{AppError, AppResult};
 use chrono::NaiveDate;
 use rusqlite::{Result as SqlResult, Row};
 
 #[derive(Debug, Clone)]
 pub struct Property {
-    pub id: Option<i64>, // ← était `i64`
-    pub label: String,
-    pub address: String,
-    pub purchase_date: NaiveDate,
-    pub purchase_price_cents: i64,
-    pub notes: Option<String>,
+    id: Option<i64>,
+    label: String,
+    address: String,
+    purchase_date: NaiveDate,
+    purchase_price_cents: i64,
+    notes: Option<String>,
 }
 
 impl Property {
@@ -18,15 +19,18 @@ impl Property {
         purchase_date: NaiveDate,
         purchase_price_cents: i64,
         notes: Option<String>,
-    ) -> Self {
-        Property {
+    ) -> AppResult<Self> {
+        if purchase_price_cents < 0 {
+            return Err(AppError::InvalidAmount(purchase_price_cents));
+        }
+        Ok(Property {
             id: None,
             label,
             address,
             purchase_date,
             purchase_price_cents,
             notes,
-        }
+        })
     }
 
     pub fn from_row(row: &Row) -> SqlResult<Self> {
@@ -48,5 +52,29 @@ impl Property {
             purchase_price_cents: row.get("purchase_price_cents")?,
             notes: row.get("notes")?,
         })
+    }
+
+    pub fn id(&self) -> Option<i64> {
+        self.id
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
+    }
+
+    pub fn address(&self) -> &str {
+        &self.address
+    }
+
+    pub fn purchase_date(&self) -> NaiveDate {
+        self.purchase_date
+    }
+
+    pub fn purchase_price_cents(&self) -> i64 {
+        self.purchase_price_cents
+    }
+
+    pub fn notes(&self) -> Option<&str> {
+        self.notes.as_deref()
     }
 }

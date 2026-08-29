@@ -76,7 +76,7 @@ impl DashboardState {
 
     fn tab_labels(&self) -> Vec<String> {
         let mut labels = vec!["Vue d'ensemble".to_string()];
-        labels.extend(self.properties.iter().map(|p| p.label.clone()));
+        labels.extend(self.properties.iter().map(|p| p.label().to_string()));
         labels
     }
 
@@ -84,7 +84,7 @@ impl DashboardState {
         if self.selected_tab == 0 {
             return Ok(None);
         }
-        let property_id = self.properties[self.selected_tab - 1].id.ok_or_else(|| {
+        let property_id = self.properties[self.selected_tab - 1].id().ok_or_else(|| {
             AppError::Internal("un bien lu depuis la base doit toujours avoir un id".to_string())
         })?;
         Ok(Some(property_detail(conn, property_id, today)?))

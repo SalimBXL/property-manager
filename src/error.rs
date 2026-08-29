@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("montant invalide : {0} centimes (doit être positif ou nul)")]
+    InvalidAmount(i64),
+
     #[error("incohérence interne : {0}")]
     Internal(String),
 

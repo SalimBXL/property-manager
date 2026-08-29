@@ -182,7 +182,7 @@ pub fn property_profitability(
 
     Ok(PropertyProfitability {
         property_id,
-        label: property.label,
+        label: property.label().to_string(),
         total_rent_collected,
         total_expenses,
         net_result: total_rent_collected - total_expenses,

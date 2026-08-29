@@ -19,7 +19,8 @@ fn test_property_profitability() {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
     let t = Tenant::new("Jean Dupont".to_string(), None);
@@ -82,7 +83,8 @@ fn test_missing_rent_months_crosses_year() {
         NaiveDate::from_ymd_opt(2023, 11, 1).unwrap(),
         1_200_000,
         None,
-    );
+    )
+    .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
     let t = Tenant::new("Marie Leroy".to_string(), None);
     let tenant_id = insert_tenant(&conn, &t).unwrap();
@@ -133,7 +135,8 @@ fn test_all_properties_profitability() {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let p1_id = insert_property(&conn, &p1).unwrap();
     let t1 = Tenant::new("Jean Dupont".to_string(), None);
     let t1_id = insert_tenant(&conn, &t1).unwrap();
@@ -174,7 +177,8 @@ fn test_all_properties_profitability() {
         NaiveDate::from_ymd_opt(2024, 6, 1).unwrap(),
         1_000_000,
         None,
-    );
+    )
+    .unwrap();
     insert_property(&conn, &p2).unwrap();
 
     let results = all_properties_profitability(&conn).unwrap();
@@ -203,7 +207,8 @@ fn test_all_overdue_leases() {
         NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let p1_id = insert_property(&conn, &p1).unwrap();
     let t1 = Tenant::new("Jean Dupont".to_string(), None);
     let t1_id = insert_tenant(&conn, &t1).unwrap();
@@ -238,7 +243,8 @@ fn test_all_overdue_leases_mois_manquant() {
         NaiveDate::from_ymd_opt(2023, 11, 1).unwrap(),
         1_200_000,
         None,
-    );
+    )
+    .unwrap();
     let p2_id = insert_property(&conn, &p2).unwrap();
     let t2 = Tenant::new("Marie Leroy".to_string(), None);
     let t2_id = insert_tenant(&conn, &t2).unwrap();

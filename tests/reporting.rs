@@ -24,10 +24,11 @@ fn portfolio_overview_with_mixed_situations() {
     let p1 = Property::new(
         "Parking A12".to_string(),
         "Rue de la Gare 10".to_string(),
-        NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
+        NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
         1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let p1_id = insert_property(&conn, &p1).unwrap();
 
     let t1 = Tenant::new("Jean Dupont".to_string(), None);
@@ -68,12 +69,13 @@ fn portfolio_overview_with_mixed_situations() {
 
     // ---------- Bien 2 : locataire en retard ----------
     let p2 = Property::new(
-        "Parking B3".to_string(),
-        "Rue du Marché 5".to_string(),
-        NaiveDate::from_ymd_opt(2022, 11, 1).unwrap(),
-        1_200_000,
+        "Parking A12".to_string(),
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
+        1_500_000,
         None,
-    );
+    )
+    .unwrap();
     let p2_id = insert_property(&conn, &p2).unwrap();
 
     let t2 = Tenant::new("Marie Leroy".to_string(), None);
@@ -112,12 +114,13 @@ fn portfolio_overview_with_mixed_situations() {
 
     // ---------- Bien 3 : acheté récemment, sans locataire ----------
     let p3 = Property::new(
-        "Parking C7".to_string(),
-        "Avenue Louise 200".to_string(),
-        NaiveDate::from_ymd_opt(2023, 1, 20).unwrap(),
-        900_000,
-        Some("Achat comptant, en travaux".to_string()),
-    );
+        "Parking B3".to_string(),
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
+        1_500_000,
+        None,
+    )
+    .unwrap();
     let p3_id = insert_property(&conn, &p3).unwrap();
 
     // ---------- Vérification : rentabilité globale ----------
@@ -155,7 +158,7 @@ fn portfolio_overview_with_mixed_situations() {
     // Seul le bail du bien 2 doit apparaître : bien 1 à jour, bien 3 sans bail du tout
     assert_eq!(overdue.len(), 1);
     assert_eq!(overdue[0].lease_id, l2_id);
-    assert_eq!(overdue[0].property_label, "Parking B3");
+    assert_eq!(overdue[0].property_label, "Parking A12");
     assert_eq!(overdue[0].tenant_name, "Marie Leroy");
     assert_eq!(overdue[0].missing_months, vec!["2023-01".to_string()]);
 }
