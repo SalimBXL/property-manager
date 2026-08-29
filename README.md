@@ -11,9 +11,10 @@ Outil en Rust pour gérer un portefeuille de biens immobiliers (parkings, appart
 - **Gestion locative** : locataires, baux (actifs ou terminés), historique des loyers encaissés
 - **Rentabilité** : calcul automatique loyers encaissés − dépenses (directes + part des indirectes), par bien ou pour tout le portefeuille
 - **Détection des loyers impayés** : identifie les mois sans paiement enregistré pour chaque bail actif
-- **Intégrité des données** : suppression d'un bien bloquée tant que des baux ou dépenses y sont rattachés
+- **Intégrité des données** : suppression d'un bien bloquée tant que des baux ou dépenses y sont rattachés ; montants et dates validés à la construction et en base (voir *Invariants et validation* ci-dessous)
 - **CLI complète** : ajout et consultation de biens, locataires, baux, dépenses et paiements
 - **Dashboard terminal** : vue d'ensemble du portefeuille et détail par bien, navigable au clavier
+- **Données de démonstration** : la base est peuplée automatiquement d'un jeu de données réaliste lors de sa toute première création
 
 ## Stack technique
 
@@ -34,18 +35,23 @@ property-manager/
 │   ├── main.rs             # binaire : parsing CLI (clap) et dispatch des commandes
 │   ├── error.rs            # type d'erreur applicatif (AppError / AppResult)
 │   ├── db/
-│   │   ├── mod.rs          # connexion SQLite, PRAGMA, ouverture de la base
-│   │   ├── schema.rs       # définition des tables (migrations simples)
+│   │   ├── mod.rs          # connexion SQLite, PRAGMA, ouverture de la base, déclenchement du seed
+│   │   ├── schema.rs       # définition des tables, contraintes CHECK et index (migrations simples)
+│   │   ├── seed.rs         # jeu de données de démonstration (base tout juste créée uniquement)
 │   │   ├── repository.rs   # CRUD par table + répartition des frais indirects
-│   │   └── reporting.rs    # requêtes composites : rentabilité, loyers en retard, détail par bien
-│   ├── models/
+│   │   ├── repository/
+│   │   │   └── tests.rs
+│   │   ├── reporting.rs    # requêtes composites : rentabilité, loyers en retard, détail par bien
+│   │   └── reporting/
+│   │       └── tests.rs
+│   ├── models/              # champs privés, construction validée (::new / ::new_direct / ::new_indirect)
 │   │   ├── property.rs
-│   │   ├── expense.rs       # Expense + ExpenseType (Direct / Indirect)
+│   │   ├── expense.rs       # Expense + ExpenseTarget (Direct { property_id } / Indirect)
 │   │   ├── tenant.rs
 │   │   ├── lease.rs
 │   │   └── rent_payment.rs
 │   └── tui/
-│       ├── mod.rs          # boucle d'événements, gestion du terminal (setup/restauration)
+│       ├── mod.rs          # boucle d'événements, gestion du terminal, DashboardState (avec cache)
 │       └── ui.rs           # construction des widgets (onglets, tableaux, panneaux)
 └── tests/
     ├── property_lifecycle.rs   # scénario complet : achat → bail → loyers → dépenses
@@ -67,9 +73,22 @@ Tous les montants sont stockés en **centimes** (`INTEGER`), jamais en `REAL`, p
 
 ### Frais directs vs indirects
 
-Un **frais direct** (`expense_type = 'direct'`) concerne un seul bien : `property_id` est renseigné directement sur la ligne `expense`.
+Un **frais direct** (`expense_type = 'direct'`) concerne un seul bien : `property_id` est renseigné directement sur la ligne `expense`. Un **frais indirect** (`expense_type = 'indirect'`) concerne plusieurs biens à la fois (charges de syndic communes, taxe partagée…) : `property_id` vaut `NULL` sur la ligne `expense`, et le montant est réparti à **parts égales** entre les biens concernés via la table `expense_allocation` — une ligne par bien, avec sa part en centimes. La répartition garantit que la somme des parts reconstitue exactement le montant total, y compris quand celui-ci ne se divise pas proprement (le reste de la division entière est distribué aux premières parts).
 
-Un **frais indirect** (`expense_type = 'indirect'`) concerne plusieurs biens à la fois (charges de syndic communes, taxe partagée…). Il est enregistré une fois avec son montant total (`property_id` à `NULL`), puis réparti à **parts égales** entre les biens concernés via la table `expense_allocation` — une ligne par bien, avec sa part en centimes. La répartition garantit que la somme des parts reconstitue exactement le montant total, y compris quand celui-ci ne se divise pas proprement (le reste de la division entière est distribué aux premières parts).
+Côté Rust, cette distinction est portée par un type `ExpenseTarget` (`Direct { property_id: i64 }` ou `Indirect`) plutôt que par deux champs séparés — les quatre combinaisons théoriques (direct+id, direct+NULL, indirect+id, indirect+NULL) se réduisent ainsi aux deux seules valides, qu'il est impossible de construire de travers.
+
+## Invariants et validation
+
+Chaque invariant métier est appliqué à deux niveaux : à la construction des modèles Rust (retour `AppResult`, échec explicite plutôt que valeur silencieusement incohérente) et en base via des contraintes SQL, pour se protéger aussi d'un accès direct ou d'un futur bug de conversion.
+
+| Invariant | Validation Rust | Contrainte SQL |
+|---|---|---|
+| Montants jamais négatifs (achat, dépense, loyer, part allouée) | `AppError::InvalidAmount` dans chaque constructeur (`Property::new`, `Expense::new_direct`/`new_indirect`, `Lease::new`, `RentPayment::new`) | `CHECK (... >= 0)` sur `purchase_price_cents`, `amount_cents`, `monthly_rent_cents` |
+| Cohérence type de frais / bien associé | Impossible à construire de travers via `ExpenseTarget` | `CHECK` combinant `expense_type` et `property_id` sur `expense` |
+| Répartition d'un frais indirect sans bien en double | `AppError::DuplicatePropertyAllocation` dans `insert_indirect_expense` | — (vérifié uniquement côté application) |
+| Dates de bail cohérentes (fin ≥ début) | `AppError::InvalidLeaseDates` dans `Lease::new` | `CHECK (end_date IS NULL OR end_date >= start_date)` |
+| Un seul bail actif par bien | `AppError::PropertyAlreadyHasActiveLease`, déduite d'une violation d'index en base | Index unique partiel `idx_one_active_lease_per_property` sur `lease(property_id) WHERE end_date IS NULL` |
+| Suppression d'un bien encore référencé | `AppError::PropertyHasDependents`, déduite d'une violation de clé étrangère | `PRAGMA foreign_keys = ON` (par connexion, activé dans `db::open`) |
 
 ## Installation
 
@@ -83,9 +102,11 @@ cargo build
 
 Aucune installation de SQLite n'est nécessaire : la feature `bundled` de `rusqlite` compile SQLite directement avec le projet.
 
+Au tout premier lancement (fichier `property_manager.db` absent), la base est créée, migrée, puis peuplée automatiquement avec un jeu de données de démonstration : 4 biens (dont un vacant), 3 locataires, des baux actifs et un terminé, des loyers avec un mois volontairement manquant (pour illustrer la détection de retard), et des dépenses directes et indirectes. Les lancements suivants réutilisent la base existante sans la re-peupler.
+
 ## Utilisation
 
-Au premier lancement d'une commande, un fichier `property_manager.db` est créé dans le répertoire courant et le schéma est initialisé automatiquement. Le chemin de la base peut être changé avec `--db-path`.
+Le chemin de la base peut être changé avec `--db-path`.
 
 ### Gestion des biens
 
@@ -151,8 +172,8 @@ cargo test
 ```
 
 La suite de tests couvre :
-- les opérations CRUD de chaque modèle, y compris la répartition des frais indirects (`tests` inline dans `db/repository.rs`)
-- les calculs de rentabilité et de loyers en retard (`tests` inline dans `db/reporting.rs`)
+- les opérations CRUD de chaque modèle, y compris la répartition des frais indirects et les invariants (montants, dates, unicité du bail actif) — `src/db/repository/tests.rs`
+- les calculs de rentabilité et de loyers en retard — `src/db/reporting/tests.rs`
 - des scénarios de bout en bout avec plusieurs biens dans des situations variées (`tests/property_lifecycle.rs`, `tests/reporting.rs`)
 
 ## Choix de conception
@@ -162,7 +183,8 @@ La suite de tests couvre :
 - **Répartition égale avec gestion du reste** : diviser un montant en centimes par N ne tombe pas toujours juste (`10001 / 3 ≠` un nombre entier de centimes) ; le reste de la division entière est distribué aux premières parts pour garantir que la somme des parts égale toujours exactement le montant total.
 - **Erreurs typées (`AppError`)** : les erreurs SQLite, de parsing de date et d'I/O terminal sont converties en erreurs explicites (`PropertyNotFound`, `PropertyHasDependents`, `EmptyAllocation`, `Terminal`, etc.) plutôt que de laisser fuiter les détails d'implémentation dans le reste de l'application.
 - **Suppression protégée** : SQLite (avec `PRAGMA foreign_keys = ON`) refuse par défaut de supprimer un bien encore référencé par un bail ou une dépense ; cette contrainte est traduite en erreur `AppError::PropertyHasDependents` plutôt que de laisser remonter une erreur SQLite brute. En CLI, cette erreur est affichée sans interrompre le programme.
-- **Dashboard à rafraîchissement manuel** : les données affichées restent en cache tant que l'utilisateur n'appuie pas sur `r`, plutôt que de recharger la base en continu — plus sobre et plus prévisible pour un usage interactif.
+- **Dashboard à cache invalidé sur événement** : les données (vue d'ensemble et détail par bien) restent en mémoire tant que l'utilisateur n'appuie pas sur `r`, ne change pas d'onglet, ou ne quitte pas — la boucle de rendu (~4 fois par seconde pour rester réactive au clavier) ne déclenche donc aucune requête SQL tant que rien de pertinent n'a changé.
+- **Modèles encapsulés** : les champs des structs (`Property`, `Expense`, `Lease`, etc.) sont privés, accessibles via des méthodes (`p.label()`, `e.amount_cents()`…) plutôt que directement — ça garantit qu'un `Property`/`Expense`/`Lease` en circulation dans le programme a toujours été validé à sa création, aucun code externe ne peut le remettre dans un état incohérent après coup.
 
 ## Feuille de route
 
@@ -173,4 +195,4 @@ La suite de tests couvre :
 
 ## Licence
 
-À définir plus tard.
+À définir.
