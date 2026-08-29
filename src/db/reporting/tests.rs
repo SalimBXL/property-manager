@@ -57,13 +57,14 @@ fn test_property_profitability() {
 
     insert_expense(
         &conn,
-        &Expense::new(
+        &Expense::new_direct(
             property_id,
             "taxe".to_string(),
             5_000,
             NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
             true,
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 
@@ -160,13 +161,14 @@ fn test_all_properties_profitability() {
     .unwrap();
     insert_expense(
         &conn,
-        &Expense::new(
+        &Expense::new_direct(
             p1_id,
             "taxe".to_string(),
             3_000,
             NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
             true,
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 

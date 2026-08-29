@@ -93,20 +93,22 @@ fn test_expense_total() {
     .unwrap();
     let property_id = insert_property(&conn, &p).unwrap();
 
-    let e1 = Expense::new(
+    let e1 = Expense::new_direct(
         property_id,
         "taxe foncière".to_string(),
         25_000,
         NaiveDate::from_ymd_opt(2024, 6, 1).unwrap(),
         true,
-    );
-    let e2 = Expense::new(
+    )
+    .unwrap();
+    let e2 = Expense::new_direct(
         property_id,
         "réparation".to_string(),
         8_000,
         NaiveDate::from_ymd_opt(2024, 9, 12).unwrap(),
         false,
-    );
+    )
+    .unwrap();
 
     insert_expense(&conn, &e1).unwrap();
     insert_expense(&conn, &e2).unwrap();

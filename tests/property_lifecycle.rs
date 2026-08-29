@@ -57,13 +57,14 @@ fn full_property_lifecycle() {
     // 4. Une dépense imprévue
     insert_expense(
         &conn,
-        &Expense::new(
+        &Expense::new_direct(
             property_id,
             "réparation barrière".to_string(),
             15_000,
             NaiveDate::from_ymd_opt(2024, 3, 10).unwrap(),
             false,
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 

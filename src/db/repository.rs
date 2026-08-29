@@ -119,12 +119,12 @@ pub fn insert_expense(conn: &Connection, e: &Expense) -> AppResult<i64> {
         "INSERT INTO expense (property_id, category, amount_cents, expense_date, recurring, expense_type)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
-            e.property_id,
-            e.category,
-            e.amount_cents,
-            e.expense_date.format("%Y-%m-%d").to_string(),
-            e.recurring as i64,
-            e.expense_type.as_str(),
+            e.property_id(),
+            e.category(),
+            e.amount_cents(),
+            e.expense_date().format("%Y-%m-%d").to_string(),
+            e.recurring() as i64,
+            e.target().type_str(),
         ],
     )?;
     Ok(conn.last_insert_rowid())

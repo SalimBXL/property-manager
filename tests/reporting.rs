@@ -57,13 +57,14 @@ fn portfolio_overview_with_mixed_situations() {
 
     insert_expense(
         &conn,
-        &Expense::new(
+        &Expense::new_direct(
             p1_id,
             "taxe foncière".to_string(),
             4_000,
             NaiveDate::from_ymd_opt(2023, 2, 15).unwrap(),
             true,
-        ),
+        )
+        .unwrap(),
     )
     .unwrap();
 

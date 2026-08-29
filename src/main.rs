@@ -411,13 +411,13 @@ fn handle_add_lease(
 }
 
 fn handle_add_expense(conn: &Connection, input: AddExpenseInput) -> AppResult<()> {
-    let expense = Expense::new(
+    let expense = Expense::new_direct(
         input.property_id,
         input.category,
         euros_to_cents(input.amount),
         parse_date(&input.date)?,
         input.recurring,
-    );
+    )?;
     let id = insert_expense(conn, &expense)?;
     println!("Dépense enregistrée avec l'id {}", id);
     Ok(())
