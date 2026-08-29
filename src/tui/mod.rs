@@ -47,27 +47,30 @@ struct DashboardState {
     profitability: Vec<PropertyProfitability>,
     overdue: Vec<OverdueLease>,
     selected_tab: usize,
+    detail_cache: Option<PropertyDetail>,
 }
 
 impl DashboardState {
     fn load(conn: &Connection, today: NaiveDate) -> AppResult<Self> {
-        Ok(Self {
+        let mut state = Self {
             properties: list_properties(conn)?,
             profitability: all_properties_profitability(conn)?,
             overdue: all_overdue_leases(conn, today)?,
             selected_tab: 0,
-        })
+            detail_cache: None,
+        };
+        state.refresh_detail_cache(conn, today)?;
+        Ok(state)
     }
 
     fn refresh(&mut self, conn: &Connection, today: NaiveDate) -> AppResult<()> {
         self.properties = list_properties(conn)?;
         self.profitability = all_properties_profitability(conn)?;
         self.overdue = all_overdue_leases(conn, today)?;
-        // le bien affiché a peut-être été supprimé
         if self.selected_tab >= self.tab_count() {
             self.selected_tab = 0;
         }
-        Ok(())
+        self.refresh_detail_cache(conn, today)
     }
 
     fn tab_count(&self) -> usize {
@@ -80,27 +83,40 @@ impl DashboardState {
         labels
     }
 
-    fn detail(&self, conn: &Connection, today: NaiveDate) -> AppResult<Option<PropertyDetail>> {
-        if self.selected_tab == 0 {
-            return Ok(None);
-        }
-        let property_id = self.properties[self.selected_tab - 1].id().ok_or_else(|| {
-            AppError::Internal("un bien lu depuis la base doit toujours avoir un id".to_string())
-        })?;
-        Ok(Some(property_detail(conn, property_id, today)?))
+    fn detail(&self) -> Option<&PropertyDetail> {
+        self.detail_cache.as_ref()
     }
 
-    fn move_right(&mut self) {
+    /// Recalcule le détail du bien affiché (ou vide le cache si on est sur
+    /// "Vue d'ensemble"). Appelée uniquement après un changement d'onglet
+    /// ou un rafraîchissement — jamais à chaque tick de la boucle.
+    fn refresh_detail_cache(&mut self, conn: &Connection, today: NaiveDate) -> AppResult<()> {
+        self.detail_cache = if self.selected_tab == 0 {
+            None
+        } else {
+            let property_id = self.properties[self.selected_tab - 1].id().ok_or_else(|| {
+                AppError::Internal(
+                    "un bien lu depuis la base doit toujours avoir un id".to_string(),
+                )
+            })?;
+            Some(property_detail(conn, property_id, today)?)
+        };
+        Ok(())
+    }
+
+    fn move_right(&mut self, conn: &Connection, today: NaiveDate) -> AppResult<()> {
         self.selected_tab = (self.selected_tab + 1) % self.tab_count();
+        self.refresh_detail_cache(conn, today)
     }
 
-    fn move_left(&mut self) {
+    fn move_left(&mut self, conn: &Connection, today: NaiveDate) -> AppResult<()> {
         let count = self.tab_count();
         self.selected_tab = if self.selected_tab == 0 {
             count - 1
         } else {
             self.selected_tab - 1
         };
+        self.refresh_detail_cache(conn, today)
     }
 }
 
@@ -122,11 +138,11 @@ fn handle_key(
             Ok(LoopAction::Continue)
         }
         KeyCode::Right => {
-            state.move_right();
+            state.move_right(conn, today)?;
             Ok(LoopAction::Continue)
         }
         KeyCode::Left => {
-            state.move_left();
+            state.move_left(conn, today)?;
             Ok(LoopAction::Continue)
         }
         _ => Ok(LoopAction::Continue),
@@ -142,7 +158,6 @@ fn event_loop(
 
     loop {
         let tab_labels = state.tab_labels();
-        let detail = state.detail(conn, today)?;
 
         terminal.draw(|frame| {
             ui::draw(
@@ -150,7 +165,7 @@ fn event_loop(
                 &tab_labels,
                 state.selected_tab,
                 (&state.profitability, &state.overdue),
-                detail.as_ref(),
+                state.detail(),
             )
         })?;
 

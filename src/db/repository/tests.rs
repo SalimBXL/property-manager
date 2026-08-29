@@ -524,3 +524,50 @@ fn can_insert_new_active_lease_after_previous_one_ended() {
     let result = insert_lease(&conn, &l2);
     assert!(result.is_ok());
 }
+
+#[test]
+fn lease_rejects_end_date_before_start_date() {
+    let result = Lease::new(
+        1,
+        1,
+        5_000,
+        NaiveDate::from_ymd_opt(2026, 8, 20).unwrap(),
+        Some(NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()),
+    );
+    assert!(matches!(result, Err(AppError::InvalidLeaseDates { .. })));
+}
+
+#[test]
+fn lease_accepts_end_date_after_start_date() {
+    let result = Lease::new(
+        1,
+        1,
+        5_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        Some(NaiveDate::from_ymd_opt(2024, 12, 31).unwrap()),
+    );
+    assert!(result.is_ok());
+}
+
+#[test]
+fn sql_check_constraint_rejects_end_date_before_start_date() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking Test".to_string(),
+        "Rue Test".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let property_id = insert_property(&conn, &p).unwrap();
+    let t = Tenant::new("Test Tenant".to_string(), None);
+    let tenant_id = insert_tenant(&conn, &t).unwrap();
+
+    let result = conn.execute(
+        "INSERT INTO lease (property_id, tenant_id, monthly_rent_cents, start_date, end_date)
+         VALUES (?1, ?2, 5000, '2026-08-20', '2026-01-01')",
+        params![property_id, tenant_id],
+    );
+    assert!(result.is_err());
+}

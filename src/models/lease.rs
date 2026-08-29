@@ -23,6 +23,14 @@ impl Lease {
         if monthly_rent_cents < 0 {
             return Err(AppError::InvalidAmount(monthly_rent_cents));
         }
+        if let Some(end) = end_date
+            && end <= start_date
+        {
+            return Err(AppError::InvalidLeaseDates {
+                start: start_date,
+                end,
+            });
+        }
         Ok(Lease {
             id: None,
             property_id,

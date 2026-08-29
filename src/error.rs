@@ -1,7 +1,11 @@
+use chrono::NaiveDate;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("dates de bail invalides : fin ({end}) antérieure au début ({start})")]
+    InvalidLeaseDates { start: NaiveDate, end: NaiveDate },
+
     #[error("le bien (id {0}) a déjà un bail actif")]
     PropertyAlreadyHasActiveLease(i64),
 

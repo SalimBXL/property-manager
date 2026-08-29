@@ -50,7 +50,8 @@ pub fn run_migrations(conn: &Connection) -> Result<()> {
             monthly_rent_cents INTEGER NOT NULL,
             start_date TEXT NOT NULL,
             end_date TEXT,
-            CHECK (monthly_rent_cents >= 0)
+            CHECK (monthly_rent_cents >= 0),
+            CHECK (end_date IS NULL OR end_date >= start_date)
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS
