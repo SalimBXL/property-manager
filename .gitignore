@@ -1,1 +1,15 @@
-/target
+# Build artifacts
+/target/
+
+# Base de données locale (contient des données personnelles/de test)
+*.db
+*.db-shm
+*.db-wal
+
+# Fichiers d'environnement éventuels
+.env
+
+# Fichiers d'éditeur
+.idea/
+.vscode/
+*.swp
