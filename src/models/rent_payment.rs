@@ -11,6 +11,31 @@ pub struct RentPayment {
     pub period_month: String, // format "YYYY-MM"
 }
 
+/// Vérifie que `period_month` respecte le format "YYYY-MM" avec un mois
+/// valide (01-12). N'utilise pas `NaiveDate` : une période n'a pas de jour,
+/// c'est un couple année/mois, pas une date complète.
+fn validate_period_month(period_month: &str) -> AppResult<()> {
+    let invalid = || AppError::InvalidPeriodMonth(period_month.to_string());
+
+    let (year_str, month_str) = period_month.split_once('-').ok_or_else(invalid)?;
+
+    if year_str.len() != 4 || month_str.len() != 2 {
+        return Err(invalid());
+    }
+    if !year_str.bytes().all(|b| b.is_ascii_digit())
+        || !month_str.bytes().all(|b| b.is_ascii_digit())
+    {
+        return Err(invalid());
+    }
+
+    let month: u32 = month_str.parse().map_err(|_| invalid())?;
+    if !(1..=12).contains(&month) {
+        return Err(invalid());
+    }
+
+    Ok(())
+}
+
 impl RentPayment {
     pub fn new(
         lease_id: i64,
@@ -21,6 +46,7 @@ impl RentPayment {
         if amount_cents < 0 {
             return Err(AppError::InvalidAmount(amount_cents));
         }
+        validate_period_month(&period_month)?;
         Ok(RentPayment {
             id: None,
             lease_id,
