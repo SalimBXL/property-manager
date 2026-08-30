@@ -288,7 +288,16 @@ pub fn insert_rent_payment(conn: &Connection, rp: &RentPayment) -> AppResult<i64
             rp.payment_date.format("%Y-%m-%d").to_string(),
             rp.period_month,
         ],
-    )?;
+    )
+    .map_err(|e| match &e {
+        rusqlite::Error::SqliteFailure(err, _) if err.extended_code == SQLITE_CONSTRAINT_UNIQUE => {
+            AppError::DuplicateRentPayment {
+                lease_id: rp.lease_id,
+                period: rp.period_month.clone(),
+            }
+        }
+        _ => AppError::Database(e),
+    })?;
     Ok(conn.last_insert_rowid())
 }
 

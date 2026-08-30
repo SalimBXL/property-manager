@@ -3,6 +3,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("un paiement existe déjà pour le bail (id {lease_id}) et la période {period}")]
+    DuplicateRentPayment { lease_id: i64, period: String },
+
     #[error("période invalide : '{0}' (format attendu : YYYY-MM, mois entre 01 et 12)")]
     InvalidPeriodMonth(String),
 
