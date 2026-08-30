@@ -166,3 +166,94 @@ fn sql_check_constraint_rejects_malformed_period_month() {
     );
     assert!(result.is_err());
 }
+
+#[test]
+fn cannot_insert_two_payments_for_same_lease_and_period() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking A12".to_string(),
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let property_id = insert_property(&conn, &p).unwrap();
+    let t = Tenant::new("Jean Dupont".to_string(), None);
+    let tenant_id = insert_tenant(&conn, &t).unwrap();
+    let l = Lease::new(
+        property_id,
+        tenant_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        None,
+    )
+    .unwrap();
+    let lease_id = insert_lease(&conn, &l).unwrap();
+
+    let rp1 = RentPayment::new(
+        lease_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 3).unwrap(),
+        "2024-01".to_string(),
+    )
+    .unwrap();
+    insert_rent_payment(&conn, &rp1).unwrap();
+
+    let rp2 = RentPayment::new(
+        lease_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 15).unwrap(), // date différente, même période
+        "2024-01".to_string(),
+    )
+    .unwrap();
+
+    let result = insert_rent_payment(&conn, &rp2);
+    assert!(matches!(
+        result,
+        Err(AppError::DuplicateRentPayment { lease_id: lid, period }) if lid == lease_id && period == "2024-01"
+    ));
+}
+
+#[test]
+fn can_insert_payments_for_different_periods() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking A12".to_string(),
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let property_id = insert_property(&conn, &p).unwrap();
+    let t = Tenant::new("Jean Dupont".to_string(), None);
+    let tenant_id = insert_tenant(&conn, &t).unwrap();
+    let l = Lease::new(
+        property_id,
+        tenant_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        None,
+    )
+    .unwrap();
+    let lease_id = insert_lease(&conn, &l).unwrap();
+
+    let rp1 = RentPayment::new(
+        lease_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 3).unwrap(),
+        "2024-01".to_string(),
+    )
+    .unwrap();
+    let rp2 = RentPayment::new(
+        lease_id,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 2, 3).unwrap(),
+        "2024-02".to_string(),
+    )
+    .unwrap();
+
+    assert!(insert_rent_payment(&conn, &rp1).is_ok());
+    assert!(insert_rent_payment(&conn, &rp2).is_ok());
+}

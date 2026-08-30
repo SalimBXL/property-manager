@@ -98,6 +98,9 @@ fn create_rent_payment_table(conn: &Connection) -> Result<()> {
                 period_month GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
                 AND CAST(substr(period_month, 6, 2) AS INTEGER) BETWEEN 1 AND 12
             )
-        );",
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS
+        idx_one_payment_per_lease_and_period
+        ON rent_payment(lease_id, period_month);",
     )
 }
