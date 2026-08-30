@@ -310,6 +310,48 @@ pub fn property_detail(
     })
 }
 
+pub struct ActiveLeaseSummary {
+    pub lease_id: i64,
+    pub property_label: String,
+    pub tenant_name: String,
+    pub monthly_rent_cents: i64,
+    pub start_date: NaiveDate,
+}
+
+pub fn list_active_leases_with_names(conn: &Connection) -> AppResult<Vec<ActiveLeaseSummary>> {
+    let mut stmt = conn.prepare(
+        "SELECT l.id, p.label, t.name, l.monthly_rent_cents, l.start_date
+         FROM lease l
+         JOIN property p ON l.property_id = p.id
+         JOIN tenant t ON l.tenant_id = t.id
+         WHERE l.end_date IS NULL
+         ORDER BY l.start_date",
+    )?;
+
+    let raw_rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, String>(4)?,
+        ))
+    })?;
+
+    let mut summaries = Vec::new();
+    for row in raw_rows {
+        let (lease_id, property_label, tenant_name, monthly_rent_cents, date_str) = row?;
+        summaries.push(ActiveLeaseSummary {
+            lease_id,
+            property_label,
+            tenant_name,
+            monthly_rent_cents,
+            start_date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")?,
+        });
+    }
+    Ok(summaries)
+}
+
 // ---------- Tests ----------
 
 #[cfg(test)]

@@ -310,16 +310,16 @@ fn handle_add_indirect_expense(conn: &Connection, input: IndirectExpenseArgs) ->
 }
 
 fn handle_list_active_leases(conn: &Connection) -> AppResult<()> {
-    let leases = list_active_leases(conn)?;
+    let leases = list_active_leases_with_names(conn)?;
     if leases.is_empty() {
         println!("Aucun bail actif.");
     }
     for l in leases {
         println!(
-            "[bail {}] bien #{} — locataire #{} — loyer {:.2} €/mois — depuis le {}",
-            l.id.unwrap(),
-            l.property_id,
-            l.tenant_id,
+            "[bail {}] {} — locataire {} — loyer {:.2} €/mois — depuis le {}",
+            l.lease_id,
+            l.property_label,
+            l.tenant_name,
             l.monthly_rent_cents as f64 / 100.0,
             l.start_date
         );
