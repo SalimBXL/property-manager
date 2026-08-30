@@ -93,7 +93,11 @@ fn create_rent_payment_table(conn: &Connection) -> Result<()> {
             amount_cents INTEGER NOT NULL,
             payment_date TEXT NOT NULL,
             period_month TEXT NOT NULL,
-            CHECK (amount_cents >= 0)
+            CHECK (amount_cents >= 0),
+            CHECK (
+                period_month GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
+                AND CAST(substr(period_month, 6, 2) AS INTEGER) BETWEEN 1 AND 12
+            )
         );",
     )
 }

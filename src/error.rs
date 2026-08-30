@@ -3,6 +3,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("période invalide : '{0}' (format attendu : YYYY-MM, mois entre 01 et 12)")]
+    InvalidPeriodMonth(String),
+
     #[error("dates de bail invalides : fin ({end}) antérieure au début ({start})")]
     InvalidLeaseDates { start: NaiveDate, end: NaiveDate },
 

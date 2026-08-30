@@ -101,3 +101,68 @@ fn rent_payment_rejects_negative_amount() {
     );
     assert!(matches!(result, Err(AppError::InvalidAmount(-100))));
 }
+
+#[test]
+fn rent_payment_rejects_malformed_period_month() {
+    let result = RentPayment::new(
+        1,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        "banane".to_string(),
+    );
+    assert!(matches!(result, Err(AppError::InvalidPeriodMonth(_))));
+}
+
+#[test]
+fn rent_payment_rejects_out_of_range_month() {
+    let result = RentPayment::new(
+        1,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        "2024-13".to_string(),
+    );
+    assert!(matches!(result, Err(AppError::InvalidPeriodMonth(_))));
+}
+
+#[test]
+fn rent_payment_accepts_valid_period_month() {
+    let result = RentPayment::new(
+        1,
+        8_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        "2024-01".to_string(),
+    );
+    assert!(result.is_ok());
+}
+
+#[test]
+fn sql_check_constraint_rejects_malformed_period_month() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking Test".to_string(),
+        "Rue Test".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let property_id = insert_property(&conn, &p).unwrap();
+    let t = Tenant::new("Test Tenant".to_string(), None);
+    let tenant_id = insert_tenant(&conn, &t).unwrap();
+    let l = Lease::new(
+        property_id,
+        tenant_id,
+        5_000,
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        None,
+    )
+    .unwrap();
+    let lease_id = insert_lease(&conn, &l).unwrap();
+
+    let result = conn.execute(
+        "INSERT INTO rent_payment (lease_id, amount_cents, payment_date, period_month)
+         VALUES (?1, 8000, '2024-01-01', '2024-13')",
+        params![lease_id],
+    );
+    assert!(result.is_err());
+}
