@@ -30,10 +30,10 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
     let p1 = insert_property(
         conn,
         &Property::new(
-            "Parking A12".to_string(),
-            "Rue de la Gare 10, Bruxelles".to_string(),
-            date(2022, 1, 15),
-            euros(15_000.0),
+            "Pacific 290".to_string(),
+            "Rue Willems, 1210 Bruxelles".to_string(),
+            date(2006, 1, 1),
+            euros(12_000.0),
             None,
         )?,
     )?;
@@ -41,9 +41,9 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
     let p2 = insert_property(
         conn,
         &Property::new(
-            "Parking B3".to_string(),
-            "Rue du Marché 5, Bruxelles".to_string(),
-            date(2021, 6, 1),
+            "Pacific 298".to_string(),
+            "Rue Willems, 1210 Bruxelles".to_string(),
+            date(2006, 1, 1),
             euros(12_000.0),
             None,
         )?,
@@ -52,54 +52,66 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
     let p3 = insert_property(
         conn,
         &Property::new(
-            "Parking C7".to_string(),
-            "Avenue Louise 200, Bruxelles".to_string(),
-            date(2024, 1, 20),
-            euros(9_000.0),
-            Some("Achat comptant, en travaux — pas encore loué".to_string()),
+            "Pacific 172".to_string(),
+            "Rue Willems, 1210 Bruxelles".to_string(),
+            date(2006, 1, 1),
+            euros(12_000.0),
+            None,
         )?,
     )?;
-    let _ = p3; // volontairement sans bail : illustre le cas "bien vacant"
+    
 
     let p4 = insert_property(
         conn,
         &Property::new(
-            "Parking D1".to_string(),
-            "Chaussée de Waterloo 88, Bruxelles".to_string(),
+            "Terrain Oignies".to_string(),
+            "5670 Oignies-en-Thiérache".to_string(),
             date(2020, 3, 10),
-            euros(11_000.0),
+            euros(20_000.0),
             None,
         )?,
     )?;
+
+    let _ = p4; // volontairement sans bail : illustre le cas "bien vacant"
 
     // ---------- Locataires ----------
     let t1 = insert_tenant(
         conn,
         &Tenant::new(
-            "Jean Dupont".to_string(),
-            Some("jean.dupont@example.com".to_string()),
+            "COLLARD Pascal".to_string(),
+            None,
         ),
     )?;
     let t2 = insert_tenant(
         conn,
         &Tenant::new(
-            "Marie Leroy".to_string(),
-            Some("marie.leroy@example.com".to_string()),
+            "CRISAN Ana-Lucioa".to_string(),
+            None,
         ),
     )?;
-    let t3 = insert_tenant(conn, &Tenant::new("Ancien Locataire".to_string(), None))?;
+    let t3 = insert_tenant(
+        conn,
+        &Tenant::new(
+            "CAUPIN Léonard".to_string(),
+            None,
+        ),
+    )?;
 
     // ---------- Baux ----------
     // Actif, loyers à jour
     let l1 = insert_lease(
         conn,
-        &Lease::new(p1, t1, euros(80.0), date(2022, 2, 1), None)?,
+        &Lease::new(p1, t1, euros(95.0), date(2026, 1, 1), None)?,
     )?;
 
     // Actif, en retard sur le mois courant
     let l2 = insert_lease(
         conn,
-        &Lease::new(p2, t2, euros(75.0), date(2021, 7, 1), None)?,
+        &Lease::new(p2, t2, euros(85.0), date(2026, 1, 1), None)?,
+    )?;
+    let l3 = insert_lease(
+        conn,
+        &Lease::new(p3, t3, euros(75.0), date(2026, 1, 1), None)?,
     )?;
 
     // Terminé — property4 n'a donc aucun bail actif
@@ -120,14 +132,20 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
         let month: u32 = period[5..7].parse().expect("mois de seed invalide");
         insert_rent_payment(
             conn,
-            &RentPayment::new(l1, euros(80.0), date(2026, month, day), period.to_string())?,
+            &RentPayment::new(l1, euros(95.0), date(2026, month, day), period.to_string())?,
         )?;
     }
 
     // L2 : juillet payé, août manquant -> remonte dans les loyers en retard
     insert_rent_payment(
         conn,
-        &RentPayment::new(l2, euros(75.0), date(2026, 7, 5), "2026-07".to_string())?,
+        &RentPayment::new(l2, euros(85.0), date(2026, 7, 5), "2026-07".to_string())?,
+    )?;
+
+    // L3 : juillet payé, août manquant -> remonte dans les loyers en retard
+    insert_rent_payment(
+        conn,
+        &RentPayment::new(l3, euros(75.0), date(2026, 7, 5), "2026-07".to_string())?,
     )?;
 
     // ---------- Dépenses ----------
@@ -147,7 +165,7 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
         &Expense::new_direct(
             p2,
             "réparation barrière".to_string(),
-            euros(120.0),
+            euros(0.0),
             date(2026, 3, 10),
             false,
         )?,
@@ -157,10 +175,10 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
         conn,
         &IndirectExpenseInput {
             category: "syndic".to_string(),
-            total_amount_cents: euros(300.0),
-            expense_date: date(2026, 1, 1),
+            total_amount_cents: euros(495.24),
+            expense_date: date(2026, 7, 1),
             recurring: true,
-            property_ids: vec![p1, p2],
+            property_ids: vec![p1, p2, p3],
         },
     )?;
 
