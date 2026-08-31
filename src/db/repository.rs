@@ -60,12 +60,68 @@ pub fn delete_property(conn: &Connection, id: i64) -> AppResult<()> {
     Ok(())
 }
 
+pub fn update_property(conn: &Connection, id: i64, updated: &Property) -> AppResult<()> {
+    let rows = conn.execute(
+        "UPDATE property
+         SET label = ?1, address = ?2, purchase_date = ?3, purchase_price_cents = ?4, notes = ?5
+         WHERE id = ?6",
+        params![
+            updated.label(),
+            updated.address(),
+            updated.purchase_date().format("%Y-%m-%d").to_string(),
+            updated.purchase_price_cents(),
+            updated.notes(),
+            id,
+        ],
+    )?;
+    if rows == 0 {
+        return Err(AppError::PropertyNotFound(id));
+    }
+    Ok(())
+}
+
 // ---------- Expense ----------
 
 /// Code SQLite étendu pour une violation de contrainte CHECK, distinct de
 /// SQLITE_CONSTRAINT_FOREIGNKEY (787) qui peut survenir légitimement si un
 /// property_id inexistant est fourni par l'utilisateur.
 const SQLITE_CONSTRAINT_CHECK: i32 = 275;
+
+pub fn update_expense(conn: &Connection, id: i64, updated: &Expense) -> AppResult<()> {
+    let current_type: String = conn
+        .query_row(
+            "SELECT expense_type FROM expense WHERE id = ?1",
+            params![id],
+            |row| row.get(0),
+        )
+        .map_err(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => AppError::ExpenseNotFound(id),
+            other => AppError::Database(other),
+        })?;
+
+    if current_type == "indirect" {
+        return Err(AppError::CannotUpdateIndirectExpense(id));
+    }
+
+    let rows = conn.execute(
+        "UPDATE expense
+         SET property_id = ?1, category = ?2, amount_cents = ?3, expense_date = ?4, recurring = ?5, expense_type = ?6
+         WHERE id = ?7",
+        params![
+            updated.property_id(),
+            updated.category(),
+            updated.amount_cents(),
+            updated.expense_date().format("%Y-%m-%d").to_string(),
+            updated.recurring() as i64,
+            updated.target().type_str(),
+            id,
+        ],
+    )?;
+    if rows == 0 {
+        return Err(AppError::ExpenseNotFound(id));
+    }
+    Ok(())
+}
 
 fn map_expense_constraint_error(e: rusqlite::Error) -> AppError {
     match &e {
@@ -187,6 +243,17 @@ pub fn total_expenses_for_property(conn: &Connection, property_id: i64) -> AppRe
 }
 
 // ---------- Tenant ----------
+
+pub fn update_tenant(conn: &Connection, id: i64, updated: &Tenant) -> AppResult<()> {
+    let rows = conn.execute(
+        "UPDATE tenant SET name = ?1, contact = ?2 WHERE id = ?3",
+        params![updated.name, updated.contact, id],
+    )?;
+    if rows == 0 {
+        return Err(AppError::TenantNotFound(id));
+    }
+    Ok(())
+}
 
 pub fn insert_tenant(conn: &Connection, t: &Tenant) -> AppResult<i64> {
     conn.execute(

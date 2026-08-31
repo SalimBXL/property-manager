@@ -1,7 +1,7 @@
 use crate::db;
 use crate::db::repository::{
     IndirectExpenseInput, insert_expense, insert_indirect_expense, insert_property,
-    total_expenses_for_property,
+    total_expenses_for_property, update_expense,
 };
 use crate::error::AppError;
 use crate::models::expense::Expense;
@@ -184,4 +184,42 @@ fn indirect_expense_rejects_duplicate_property_ids() {
     );
 
     assert!(matches!(result, Err(AppError::DuplicatePropertyAllocation(id)) if id == p2_id));
+}
+
+#[test]
+fn update_expense_rejects_indirect() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking A".to_string(),
+        "Rue A".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let property_id = insert_property(&conn, &p).unwrap();
+
+    let indirect_id = insert_indirect_expense(
+        &conn,
+        &IndirectExpenseInput {
+            category: "syndic".to_string(),
+            total_amount_cents: 9_000,
+            expense_date: NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
+            recurring: false,
+            property_ids: vec![property_id],
+        },
+    )
+    .unwrap();
+
+    let attempted_update = Expense::new_direct(
+        property_id,
+        "modifié".to_string(),
+        5_000,
+        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
+        false,
+    )
+    .unwrap();
+
+    let result = update_expense(&conn, indirect_id, &attempted_update);
+    assert!(matches!(result, Err(AppError::CannotUpdateIndirectExpense(id)) if id == indirect_id));
 }

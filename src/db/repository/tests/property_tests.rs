@@ -1,5 +1,5 @@
 use crate::db;
-use crate::db::repository::{delete_property, get_property, insert_property};
+use crate::db::repository::{delete_property, get_property, insert_property, update_property};
 use crate::error::AppError;
 use crate::models::property::Property;
 use chrono::NaiveDate;
@@ -87,4 +87,47 @@ fn deleting_property_without_dependents_succeeds() {
 
     let result = get_property(&conn, property_id);
     assert!(result.is_err());
+}
+
+#[test]
+fn update_property_changes_fields() {
+    let conn = db::open_in_memory().unwrap();
+    let p = Property::new(
+        "Parking A12".to_string(),
+        "Rue de la Gare 10".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_500_000,
+        None,
+    )
+    .unwrap();
+    let id = insert_property(&conn, &p).unwrap();
+
+    let updated = Property::new(
+        "Parking A12 (rénové)".to_string(),
+        "Rue de la Gare 12".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_500_000,
+        Some("Adresse corrigée".to_string()),
+    )
+    .unwrap();
+    update_property(&conn, id, &updated).unwrap();
+
+    let fetched = get_property(&conn, id).unwrap();
+    assert_eq!(fetched.label(), "Parking A12 (rénové)");
+    assert_eq!(fetched.address(), "Rue de la Gare 12");
+}
+
+#[test]
+fn update_property_fails_for_unknown_id() {
+    let conn = db::open_in_memory().unwrap();
+    let updated = Property::new(
+        "Parking Fantôme".to_string(),
+        "Rue Inexistante".to_string(),
+        NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+        1_000_000,
+        None,
+    )
+    .unwrap();
+    let result = update_property(&conn, 999, &updated);
+    assert!(matches!(result, Err(AppError::PropertyNotFound(999))));
 }

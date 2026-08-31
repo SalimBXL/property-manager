@@ -48,6 +48,64 @@ struct AddExpenseInput {
     recurring: bool,
 }
 
+struct UpdatePropertyInput {
+    property_id: i64,
+    label: String,
+    address: String,
+    purchase_date: String,
+    purchase_price: f64,
+    notes: Option<String>,
+}
+
+impl UpdatePropertyInput {
+    fn new(
+        property_id: i64,
+        label: String,
+        address: String,
+        purchase_date: String,
+        purchase_price: f64,
+        notes: Option<String>,
+    ) -> Self {
+        Self {
+            property_id,
+            label,
+            address,
+            purchase_date,
+            purchase_price,
+            notes,
+        }
+    }
+}
+
+struct UpdateExpenseInput {
+    expense_id: i64,
+    property_id: i64,
+    category: String,
+    amount: f64,
+    date: String,
+    recurring: bool,
+}
+
+impl UpdateExpenseInput {
+    fn new(
+        expense_id: i64,
+        property_id: i64,
+        category: String,
+        amount: f64,
+        date: String,
+        recurring: bool,
+    ) -> Self {
+        Self {
+            expense_id,
+            property_id,
+            category,
+            amount,
+            date,
+            recurring,
+        }
+    }
+}
+
 impl IndirectExpenseArgs {
     fn new(
         category: String,
@@ -98,6 +156,36 @@ impl AddExpenseInput {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Modifier un bien existant
+    UpdateProperty {
+        property_id: i64,
+        label: String,
+        address: String,
+        purchase_date: String,
+        purchase_price: f64,
+        #[arg(long)]
+        notes: Option<String>,
+    },
+
+    /// Modifier un locataire existant
+    UpdateTenant {
+        tenant_id: i64,
+        name: String,
+        #[arg(long)]
+        contact: Option<String>,
+    },
+
+    /// Modifier une dépense directe existante
+    UpdateExpense {
+        expense_id: i64,
+        property_id: i64,
+        category: String,
+        amount: f64,
+        date: String,
+        #[arg(long)]
+        recurring: bool,
+    },
+
     /// Enregistrer un frais indirect, réparti à parts égales entre plusieurs biens
     AddIndirectExpense {
         category: String,
@@ -219,13 +307,9 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
         Command::Dashboard => unreachable!("géré en amont dans main()"),
 
         Command::ListActiveLeases => handle_list_active_leases(conn)?,
-
         Command::ListExpenses { property_id } => handle_list_expenses(conn, property_id)?,
-
         Command::DeleteProperty { property_id } => handle_delete_property(conn, property_id),
-
         Command::ListProperties => handle_list_properties(conn)?,
-
         Command::AddTenant { name, contact } => handle_add_tenant(conn, name, contact)?,
 
         Command::AddLease {
@@ -243,10 +327,57 @@ fn run_command(conn: &Connection, command: Command) -> AppResult<()> {
         } => handle_add_payment(conn, lease_id, amount, date, period)?,
 
         Command::Profitability => handle_profitability(conn)?,
-
         Command::Overdue { up_to } => handle_overdue(conn, up_to)?,
 
+        cmd @ (Command::UpdateProperty { .. }
+        | Command::UpdateTenant { .. }
+        | Command::UpdateExpense { .. }) => run_update_command(conn, cmd)?,
+
         other => run_add_command(conn, other)?,
+    }
+    Ok(())
+}
+
+fn run_update_command(conn: &Connection, command: Command) -> AppResult<()> {
+    match command {
+        Command::UpdateProperty {
+            property_id,
+            label,
+            address,
+            purchase_date,
+            purchase_price,
+            notes,
+        } => handle_update_property(
+            conn,
+            UpdatePropertyInput::new(
+                property_id,
+                label,
+                address,
+                purchase_date,
+                purchase_price,
+                notes,
+            ),
+        )?,
+
+        Command::UpdateTenant {
+            tenant_id,
+            name,
+            contact,
+        } => handle_update_tenant(conn, tenant_id, name, contact)?,
+
+        Command::UpdateExpense {
+            expense_id,
+            property_id,
+            category,
+            amount,
+            date,
+            recurring,
+        } => handle_update_expense(
+            conn,
+            UpdateExpenseInput::new(expense_id, property_id, category, amount, date, recurring),
+        )?,
+
+        _ => unreachable!("géré ailleurs"),
     }
     Ok(())
 }
@@ -353,19 +484,6 @@ fn handle_delete_property(conn: &Connection, property_id: i64) {
     }
 }
 
-fn handle_add_property(conn: &Connection, input: AddPropertyInput) -> AppResult<()> {
-    let property = Property::new(
-        input.label,
-        input.address,
-        parse_date(&input.purchase_date)?,
-        euros_to_cents(input.purchase_price),
-        input.notes,
-    )?;
-    let id = insert_property(conn, &property)?;
-    println!("Bien créé avec l'id {}", id);
-    Ok(())
-}
-
 fn handle_list_properties(conn: &Connection) -> AppResult<()> {
     let properties = list_properties(conn)?;
     if properties.is_empty() {
@@ -388,6 +506,57 @@ fn handle_add_tenant(conn: &Connection, name: String, contact: Option<String>) -
     let tenant = Tenant::new(name, contact);
     let id = insert_tenant(conn, &tenant)?;
     println!("Locataire créé avec l'id {}", id);
+    Ok(())
+}
+
+fn handle_add_property(conn: &Connection, input: AddPropertyInput) -> AppResult<()> {
+    let property = Property::new(
+        input.label,
+        input.address,
+        parse_date(&input.purchase_date)?,
+        euros_to_cents(input.purchase_price),
+        input.notes,
+    )?;
+    let id = insert_property(conn, &property)?;
+    println!("Bien créé avec l'id {}", id);
+    Ok(())
+}
+
+fn handle_update_expense(conn: &Connection, input: UpdateExpenseInput) -> AppResult<()> {
+    let expense = Expense::new_direct(
+        input.property_id,
+        input.category,
+        euros_to_cents(input.amount),
+        parse_date(&input.date)?,
+        input.recurring,
+    )?;
+    update_expense(conn, input.expense_id, &expense)?;
+    println!("Dépense {} mise à jour.", input.expense_id);
+    Ok(())
+}
+
+fn handle_update_property(conn: &Connection, input: UpdatePropertyInput) -> AppResult<()> {
+    let property = Property::new(
+        input.label,
+        input.address,
+        parse_date(&input.purchase_date)?,
+        euros_to_cents(input.purchase_price),
+        input.notes,
+    )?;
+    update_property(conn, input.property_id, &property)?;
+    println!("Bien {} mis à jour.", input.property_id);
+    Ok(())
+}
+
+fn handle_update_tenant(
+    conn: &Connection,
+    tenant_id: i64,
+    name: String,
+    contact: Option<String>,
+) -> AppResult<()> {
+    let tenant = Tenant::new(name, contact);
+    update_tenant(conn, tenant_id, &tenant)?;
+    println!("Locataire {} mis à jour.", tenant_id);
     Ok(())
 }
 

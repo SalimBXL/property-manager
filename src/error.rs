@@ -3,6 +3,17 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum AppError {
+    #[error("locataire introuvable (id {0})")]
+    TenantNotFound(i64),
+
+    #[error("dépense introuvable (id {0})")]
+    ExpenseNotFound(i64),
+
+    #[error(
+        "impossible de modifier un frais indirect (id {0}) : la répartition devrait être recalculée, non supportée pour l'instant"
+    )]
+    CannotUpdateIndirectExpense(i64),
+
     #[error("un paiement existe déjà pour le bail (id {lease_id}) et la période {period}")]
     DuplicateRentPayment { lease_id: i64, period: String },
 
