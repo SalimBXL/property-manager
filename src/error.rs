@@ -10,7 +10,8 @@ pub enum AppError {
     ExpenseNotFound(i64),
 
     #[error(
-        "impossible de modifier un frais indirect (id {0}) : la répartition devrait être recalculée, non supportée pour l'instant"
+        "impossible de modifier un frais indirect (id {0}) : la répartition devrait être \
+     recalculée, non supportée pour l'instant"
     )]
     CannotUpdateIndirectExpense(i64),
 
@@ -60,3 +61,18 @@ pub enum AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cannot_update_indirect_expense_message_unchanged() {
+        let err = AppError::CannotUpdateIndirectExpense(42);
+        assert_eq!(
+            err.to_string(),
+            "impossible de modifier un frais indirect (id 42) : la répartition devrait être \
+             recalculée, non supportée pour l'instant"
+        );
+    }
+}
