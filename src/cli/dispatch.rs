@@ -101,11 +101,7 @@ fn run_update_command(conn: &Connection, command: Command) -> AppResult<()> {
             conn,
             UpdatePropertyInput::new(
                 property_id,
-                label,
-                address,
-                purchase_date,
-                purchase_price,
-                notes,
+                AddPropertyInput::new(label, address, purchase_date, purchase_price, notes),
             ),
         )?,
 
@@ -124,7 +120,10 @@ fn run_update_command(conn: &Connection, command: Command) -> AppResult<()> {
             recurring,
         } => handle_update_expense(
             conn,
-            UpdateExpenseInput::new(expense_id, property_id, category, amount, date, recurring),
+            UpdateExpenseInput::new(
+                expense_id,
+                AddExpenseInput::new(property_id, category, amount, date, recurring),
+            ),
         )?,
 
         _ => unreachable!("géré ailleurs"),

@@ -59,7 +59,6 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
             None,
         )?,
     )?;
-    
 
     let p4 = insert_property(
         conn,
@@ -75,27 +74,9 @@ pub fn seed_demo_data(conn: &Connection) -> AppResult<()> {
     let _ = p4; // volontairement sans bail : illustre le cas "bien vacant"
 
     // ---------- Locataires ----------
-    let t1 = insert_tenant(
-        conn,
-        &Tenant::new(
-            "COLLARD Pascal".to_string(),
-            None,
-        ),
-    )?;
-    let t2 = insert_tenant(
-        conn,
-        &Tenant::new(
-            "CRISAN Ana-Lucioa".to_string(),
-            None,
-        ),
-    )?;
-    let t3 = insert_tenant(
-        conn,
-        &Tenant::new(
-            "CAUPIN Léonard".to_string(),
-            None,
-        ),
-    )?;
+    let t1 = insert_tenant(conn, &Tenant::new("COLLARD Pascal".to_string(), None))?;
+    let t2 = insert_tenant(conn, &Tenant::new("CRISAN Ana-Lucioa".to_string(), None))?;
+    let t3 = insert_tenant(conn, &Tenant::new("CAUPIN Léonard".to_string(), None))?;
 
     // ---------- Baux ----------
     // Actif, loyers à jour
