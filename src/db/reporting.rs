@@ -1,10 +1,8 @@
 use crate::db::repository::{
-    active_lease_for_property, get_property, list_leases_for_property, list_payments_for_lease,
-    total_expenses_for_property,
+    active_lease_for_property, get_property, list_payments_for_lease, total_expenses_for_property,
 };
 use crate::error::AppError;
 use crate::error::AppResult;
-use crate::models::lease::Lease;
 use crate::models::property::Property;
 use chrono::{Datelike, NaiveDate};
 use rusqlite::{Connection, params};
@@ -267,8 +265,8 @@ pub fn missing_rent_months(
 pub struct PropertyDetail {
     pub property: Property,
     pub expenses: Vec<ExpenseLine>,
-    pub rent_payments: Vec<RentPaymentLine>, // nouveau
-    pub leases: Vec<Lease>,
+    pub rent_payments: Vec<RentPaymentLine>,
+    pub leases: Vec<LeaseHistoryLine>, // était Vec<Lease>
     pub total_rent_collected: i64,
     pub total_expenses: i64,
     pub net_result: i64,
@@ -282,8 +280,8 @@ pub fn property_detail(
 ) -> AppResult<PropertyDetail> {
     let property = get_property(conn, property_id)?;
     let expenses = list_expense_lines_for_property(conn, property_id)?;
-    let rent_payments = list_rent_payments_for_property(conn, property_id)?; // nouveau
-    let leases = list_leases_for_property(conn, property_id)?;
+    let rent_payments = list_rent_payments_for_property(conn, property_id)?;
+    let leases = list_lease_history_for_property(conn, property_id)?; // changé
     let profitability = property_profitability(conn, property_id)?;
 
     let missing_months = match active_lease_for_property(conn, property_id)? {
@@ -308,6 +306,59 @@ pub fn property_detail(
         net_result: profitability.net_result,
         missing_months,
     })
+}
+
+pub struct LeaseHistoryLine {
+    pub lease_id: i64,
+    pub tenant_name: String,
+    pub monthly_rent_cents: i64,
+    pub start_date: NaiveDate,
+    pub end_date: Option<NaiveDate>,
+}
+
+impl LeaseHistoryLine {
+    pub fn is_active(&self) -> bool {
+        self.end_date.is_none()
+    }
+}
+
+pub fn list_lease_history_for_property(
+    conn: &Connection,
+    property_id: i64,
+) -> AppResult<Vec<LeaseHistoryLine>> {
+    let mut stmt = conn.prepare(
+        "SELECT l.id, t.name, l.monthly_rent_cents, l.start_date, l.end_date
+         FROM lease l
+         JOIN tenant t ON l.tenant_id = t.id
+         WHERE l.property_id = ?1
+         ORDER BY l.start_date",
+    )?;
+
+    let raw_rows = stmt.query_map(params![property_id], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        ))
+    })?;
+
+    let mut lines = Vec::new();
+    for row in raw_rows {
+        let (lease_id, tenant_name, monthly_rent_cents, start_str, end_str) = row?;
+        let end_date = end_str
+            .map(|s| NaiveDate::parse_from_str(&s, "%Y-%m-%d"))
+            .transpose()?;
+        lines.push(LeaseHistoryLine {
+            lease_id,
+            tenant_name,
+            monthly_rent_cents,
+            start_date: NaiveDate::parse_from_str(&start_str, "%Y-%m-%d")?,
+            end_date,
+        });
+    }
+    Ok(lines)
 }
 
 pub struct ActiveLeaseSummary {

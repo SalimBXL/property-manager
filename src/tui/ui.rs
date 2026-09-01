@@ -7,22 +7,27 @@ use ratatui::{
 };
 
 use property_manager::db::reporting::{
-    ExpenseLine, OverdueLease, PropertyDetail, PropertyProfitability, RentPaymentLine,
+    ActiveLeaseSummary, ExpenseLine, LeaseHistoryLine, OverdueLease, PropertyDetail,
+    PropertyProfitability, RentPaymentLine,
 };
 
 pub fn draw(
     frame: &mut Frame,
     tab_labels: &[String],
     selected_tab: usize,
-    overview: (&[PropertyProfitability], &[OverdueLease]),
+    overview: (
+        &[PropertyProfitability],
+        &[OverdueLease],
+        &[ActiveLeaseSummary],
+    ),
     detail: Option<&PropertyDetail>,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // titre
-            Constraint::Length(3), // onglets
-            Constraint::Min(0),    // contenu
+            Constraint::Length(3),
+            Constraint::Length(3),
+            Constraint::Min(0),
         ])
         .split(frame.area());
 
@@ -30,7 +35,7 @@ pub fn draw(
     draw_tabs(frame, chunks[1], tab_labels, selected_tab);
 
     if selected_tab == 0 {
-        draw_overview(frame, chunks[2], overview.0, overview.1);
+        draw_overview(frame, chunks[2], overview.0, overview.1, overview.2);
     } else if let Some(detail) = detail {
         draw_property_detail(frame, chunks[2], detail);
     }
@@ -66,14 +71,52 @@ fn draw_overview(
     area: Rect,
     profitability: &[PropertyProfitability],
     overdue: &[OverdueLease],
+    active_leases: &[ActiveLeaseSummary],
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
     draw_profitability_table(frame, chunks[0], profitability);
-    draw_overdue_panel(frame, chunks[1], overdue);
+
+    let bottom = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[1]);
+
+    draw_overdue_panel(frame, bottom[0], overdue);
+    draw_active_leases_panel(frame, bottom[1], active_leases);
+}
+
+fn draw_active_leases_panel(frame: &mut Frame, area: Rect, leases: &[ActiveLeaseSummary]) {
+    let header = Row::new(vec!["Bien", "Locataire", "Loyer", "Depuis"])
+        .style(Style::default().add_modifier(Modifier::BOLD));
+
+    let rows: Vec<Row> = leases
+        .iter()
+        .map(|l| {
+            Row::new(vec![
+                Cell::from(l.property_label.clone()),
+                Cell::from(l.tenant_name.clone()),
+                Cell::from(format!("{:.2} €", l.monthly_rent_cents as f64 / 100.0)),
+                Cell::from(l.start_date.to_string()),
+            ])
+        })
+        .collect();
+
+    let widths = [
+        Constraint::Percentage(30),
+        Constraint::Percentage(30),
+        Constraint::Percentage(20),
+        Constraint::Percentage(20),
+    ];
+    let table = Table::new(rows, widths).header(header).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Baux actifs "),
+    );
+    frame.render_widget(table, area);
 }
 
 fn draw_profitability_table(
@@ -150,6 +193,7 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(6), // résumé
+            Constraint::Length(7), // baux
             Constraint::Min(0),    // dépenses + paiements
         ])
         .split(area);
@@ -195,13 +239,50 @@ fn draw_property_detail(frame: &mut Frame, area: Rect, detail: &PropertyDetail) 
         .block(Block::default().borders(Borders::ALL).title(" Résumé "));
     frame.render_widget(summary, chunks[0]);
 
+    draw_leases_table(frame, chunks[1], &detail.leases);
+
     let bottom = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(chunks[1]);
+        .split(chunks[2]); // décalé : chunks[2] au lieu de chunks[1]
 
     draw_expenses_table(frame, bottom[0], &detail.expenses);
     draw_rent_payments_table(frame, bottom[1], &detail.rent_payments);
+}
+
+fn draw_leases_table(frame: &mut Frame, area: Rect, leases: &[LeaseHistoryLine]) {
+    let header = Row::new(vec!["Locataire", "Loyer", "Début", "Fin", "Statut"])
+        .style(Style::default().add_modifier(Modifier::BOLD));
+
+    let rows: Vec<Row> = leases
+        .iter()
+        .map(|l| {
+            let (status_text, status_style) = if l.is_active() {
+                ("actif", Style::default().fg(Color::Green))
+            } else {
+                ("terminé", Style::default().fg(Color::DarkGray))
+            };
+            Row::new(vec![
+                Cell::from(l.tenant_name.clone()),
+                Cell::from(format!("{:.2} €", l.monthly_rent_cents as f64 / 100.0)),
+                Cell::from(l.start_date.to_string()),
+                Cell::from(l.end_date.map(|d| d.to_string()).unwrap_or_default()),
+                Cell::from(status_text).style(status_style),
+            ])
+        })
+        .collect();
+
+    let widths = [
+        Constraint::Percentage(30),
+        Constraint::Percentage(20),
+        Constraint::Percentage(18),
+        Constraint::Percentage(18),
+        Constraint::Percentage(14),
+    ];
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title(" Baux "));
+    frame.render_widget(table, area);
 }
 
 fn draw_expenses_table(frame: &mut Frame, area: Rect, expenses: &[ExpenseLine]) {
