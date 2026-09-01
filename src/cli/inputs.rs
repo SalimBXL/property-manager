@@ -86,21 +86,14 @@ pub(crate) struct UpdatePropertyInput {
 }
 
 impl UpdatePropertyInput {
-    pub(crate) fn new(
-        property_id: i64,
-        label: String,
-        address: String,
-        purchase_date: String,
-        purchase_price: f64,
-        notes: Option<String>,
-    ) -> Self {
+    pub(crate) fn new(property_id: i64, fields: AddPropertyInput) -> Self {
         Self {
             property_id,
-            label,
-            address,
-            purchase_date,
-            purchase_price,
-            notes,
+            label: fields.label,
+            address: fields.address,
+            purchase_date: fields.purchase_date,
+            purchase_price: fields.purchase_price,
+            notes: fields.notes,
         }
     }
 }
@@ -115,21 +108,14 @@ pub(crate) struct UpdateExpenseInput {
 }
 
 impl UpdateExpenseInput {
-    pub(crate) fn new(
-        expense_id: i64,
-        property_id: i64,
-        category: String,
-        amount: f64,
-        date: String,
-        recurring: bool,
-    ) -> Self {
+    pub(crate) fn new(expense_id: i64, fields: AddExpenseInput) -> Self {
         Self {
             expense_id,
-            property_id,
-            category,
-            amount,
-            date,
-            recurring,
+            property_id: fields.property_id,
+            category: fields.category,
+            amount: fields.amount,
+            date: fields.date,
+            recurring: fields.recurring,
         }
     }
 }
