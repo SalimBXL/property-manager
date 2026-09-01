@@ -13,11 +13,11 @@ use rusqlite::Connection;
 
 use property_manager::db;
 use property_manager::db::reporting::{
-    OverdueLease, PropertyDetail, PropertyProfitability, all_overdue_leases,
-    all_properties_profitability, property_detail,
+    ActiveLeaseSummary, OverdueLease, PropertyDetail, PropertyProfitability, all_overdue_leases,
+    all_properties_profitability, list_active_leases_with_names, property_detail,
 };
 use property_manager::db::repository::list_properties;
-use property_manager::error::{AppError, AppResult};
+use property_manager::error::AppResult;
 use property_manager::models::property::Property;
 
 mod ui;
@@ -46,6 +46,7 @@ struct DashboardState {
     properties: Vec<Property>,
     profitability: Vec<PropertyProfitability>,
     overdue: Vec<OverdueLease>,
+    active_leases: Vec<ActiveLeaseSummary>,
     selected_tab: usize,
     detail_cache: Option<PropertyDetail>,
 }
@@ -56,6 +57,7 @@ impl DashboardState {
             properties: list_properties(conn)?,
             profitability: all_properties_profitability(conn)?,
             overdue: all_overdue_leases(conn, today)?,
+            active_leases: list_active_leases_with_names(conn)?,
             selected_tab: 0,
             detail_cache: None,
         };
@@ -67,6 +69,7 @@ impl DashboardState {
         self.properties = list_properties(conn)?;
         self.profitability = all_properties_profitability(conn)?;
         self.overdue = all_overdue_leases(conn, today)?;
+        self.active_leases = list_active_leases_with_names(conn)?;
         if self.selected_tab >= self.tab_count() {
             self.selected_tab = 0;
         }
@@ -95,7 +98,7 @@ impl DashboardState {
             None
         } else {
             let property_id = self.properties[self.selected_tab - 1].id().ok_or_else(|| {
-                AppError::Internal(
+                property_manager::error::AppError::Internal(
                     "un bien lu depuis la base doit toujours avoir un id".to_string(),
                 )
             })?;
@@ -164,7 +167,7 @@ fn event_loop(
                 frame,
                 &tab_labels,
                 state.selected_tab,
-                (&state.profitability, &state.overdue),
+                (&state.profitability, &state.overdue, &state.active_leases),
                 state.detail(),
             )
         })?;
