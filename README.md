@@ -11,9 +11,9 @@ Outil en Rust pour gérer un portefeuille de biens immobiliers (parkings, appart
 - **Gestion locative** : locataires, baux (actifs ou terminés), historique des loyers encaissés
 - **Rentabilité** : calcul automatique loyers encaissés − dépenses (directes + part des indirectes), par bien ou pour tout le portefeuille
 - **Détection des loyers impayés** : identifie les mois sans paiement enregistré pour chaque bail actif
-- **Intégrité des données** : suppression d'un bien bloquée tant que des baux ou dépenses y sont rattachés ; montants et dates validés à la construction et en base (voir *Invariants et validation* ci-dessous)
-- **CLI complète** : ajout et consultation de biens, locataires, baux, dépenses et paiements
-- **Dashboard terminal** : vue d'ensemble du portefeuille et détail par bien, navigable au clavier
+- **Intégrité des données** : suppression d'un bien bloquée tant que des baux ou dépenses y sont rattachés ; montants, dates et périodes validés à la construction et en base (voir *Invariants et validation* ci-dessous)
+- **CLI complète** : ajout, consultation **et modification** de biens, locataires, baux, dépenses et paiements
+- **Dashboard terminal** : vue d'ensemble du portefeuille (rentabilité, loyers en retard, baux actifs) et détail par bien (résumé, historique des baux, dépenses, paiements), navigable au clavier
 - **Données de démonstration** : la base est peuplée automatiquement d'un jeu de données réaliste lors de sa toute première création
 
 ## Stack technique
@@ -29,30 +29,36 @@ Outil en Rust pour gérer un portefeuille de biens immobiliers (parkings, appart
 
 ```
 property-manager/
+├── .gitignore
 ├── Cargo.toml
 ├── src/
-│   ├── lib.rs              # point d'entrée de la librairie
-│   ├── main.rs             # binaire : parsing CLI (clap) et dispatch des commandes
-│   ├── error.rs            # type d'erreur applicatif (AppError / AppResult)
+│   ├── lib.rs               # point d'entrée de la librairie
+│   ├── main.rs               # point d'entrée du binaire : ouvre la connexion, délègue à cli::
+│   ├── error.rs              # type d'erreur applicatif (AppError / AppResult), avec ses propres tests
+│   ├── cli/
+│   │   ├── mod.rs            # Cli, Command (définitions clap), parse_date, euros_to_cents
+│   │   ├── inputs.rs         # structs de regroupement (AddPropertyInput, UpdateExpenseInput, etc.)
+│   │   ├── handlers.rs       # une fonction handle_xxx par commande
+│   │   └── dispatch.rs       # run_command / run_add_command / run_update_command
 │   ├── db/
-│   │   ├── mod.rs          # connexion SQLite, PRAGMA, ouverture de la base, déclenchement du seed
-│   │   ├── schema.rs       # définition des tables, contraintes CHECK et index (migrations simples)
-│   │   ├── seed.rs         # jeu de données de démonstration (base tout juste créée uniquement)
-│   │   ├── repository.rs   # CRUD par table + répartition des frais indirects
+│   │   ├── mod.rs            # connexion SQLite, PRAGMA, ouverture de la base, déclenchement du seed
+│   │   ├── schema.rs         # une fonction create_xxx_table par table, contraintes CHECK et index
+│   │   ├── seed.rs           # jeu de données de démonstration (base tout juste créée uniquement)
+│   │   ├── repository.rs     # CRUD par table + répartition des frais indirects
 │   │   ├── repository/
-│   │   │   └── tests.rs
-│   │   ├── reporting.rs    # requêtes composites : rentabilité, loyers en retard, détail par bien
+│   │   │   └── tests/        # property_tests.rs, expense_tests.rs, lease_tests.rs, rent_payment_tests.rs
+│   │   ├── reporting.rs      # requêtes composites : rentabilité, loyers en retard, détail par bien
 │   │   └── reporting/
-│   │       └── tests.rs
-│   ├── models/              # champs privés, construction validée (::new / ::new_direct / ::new_indirect)
+│   │       └── tests/        # helpers.rs (fixtures), profitability_tests.rs, overdue_tests.rs
+│   ├── models/                # champs privés, construction validée (::new / ::new_direct / ::new_indirect)
 │   │   ├── property.rs
-│   │   ├── expense.rs       # Expense + ExpenseTarget (Direct { property_id } / Indirect)
+│   │   ├── expense.rs         # Expense + ExpenseTarget (Direct { property_id } / Indirect)
 │   │   ├── tenant.rs
 │   │   ├── lease.rs
 │   │   └── rent_payment.rs
 │   └── tui/
-│       ├── mod.rs          # boucle d'événements, gestion du terminal, DashboardState (avec cache)
-│       └── ui.rs           # construction des widgets (onglets, tableaux, panneaux)
+│       ├── mod.rs            # boucle d'événements, gestion du terminal, DashboardState (avec cache)
+│       └── ui.rs             # construction des widgets (onglets, tableaux, panneaux)
 └── tests/
     ├── property_lifecycle.rs   # scénario complet : achat → bail → loyers → dépenses
     └── reporting.rs            # scénario multi-biens : rentabilité et retards de paiement
@@ -88,7 +94,10 @@ Chaque invariant métier est appliqué à deux niveaux : à la construction des 
 | Répartition d'un frais indirect sans bien en double | `AppError::DuplicatePropertyAllocation` dans `insert_indirect_expense` | — (vérifié uniquement côté application) |
 | Dates de bail cohérentes (fin ≥ début) | `AppError::InvalidLeaseDates` dans `Lease::new` | `CHECK (end_date IS NULL OR end_date >= start_date)` |
 | Un seul bail actif par bien | `AppError::PropertyAlreadyHasActiveLease`, déduite d'une violation d'index en base | Index unique partiel `idx_one_active_lease_per_property` sur `lease(property_id) WHERE end_date IS NULL` |
+| Période de loyer au format `YYYY-MM`, mois entre 01 et 12 | `AppError::InvalidPeriodMonth` dans `RentPayment::new` | `CHECK` combinant `GLOB` et extraction du mois sur `period_month` |
+| Un seul paiement par bail et par période | `AppError::DuplicateRentPayment`, déduite d'une violation d'index en base | Index unique `idx_one_payment_per_lease_and_period` sur `rent_payment(lease_id, period_month)` |
 | Suppression d'un bien encore référencé | `AppError::PropertyHasDependents`, déduite d'une violation de clé étrangère | `PRAGMA foreign_keys = ON` (par connexion, activé dans `db::open`) |
+| Modification d'un frais indirect | `AppError::CannotUpdateIndirectExpense` dans `update_expense` (répartition non recalculée, non supportée pour l'instant) | — (vérifié uniquement côté application) |
 
 ## Installation
 
@@ -113,6 +122,7 @@ Le chemin de la base peut être changé avec `--db-path`.
 ```bash
 cargo run -- add-property "Parking A12" "Rue de la Gare 10" 2024-01-15 15000.00
 cargo run -- list-properties
+cargo run -- update-property <property_id> "Parking A12 (rénové)" "Rue de la Gare 12" 2024-01-15 15000.00
 cargo run -- delete-property 1
 ```
 
@@ -120,6 +130,7 @@ cargo run -- delete-property 1
 
 ```bash
 cargo run -- add-tenant "Jean Dupont" --contact jean@example.com
+cargo run -- update-tenant <tenant_id> "Jean Dupont" --contact jean.dupont@example.com
 cargo run -- add-lease <property_id> <tenant_id> 80.00 2024-02-01
 cargo run -- list-active-leases
 ```
@@ -129,8 +140,9 @@ cargo run -- list-active-leases
 ```bash
 # Frais direct : rattaché à un seul bien
 cargo run -- add-expense <property_id> "réparation barrière" 150.00 2024-06-01
+cargo run -- update-expense <expense_id> <property_id> "réparation barrière" 180.00 2024-06-01
 
-# Frais indirect : réparti à parts égales sur plusieurs biens
+# Frais indirect : réparti à parts égales sur plusieurs biens (non modifiable, voir Invariants)
 cargo run -- add-indirect-expense "syndic" 100.01 2024-03-01 --properties 1,2,3
 
 cargo run -- list-expenses <property_id>
@@ -151,8 +163,9 @@ cargo run -- overdue --up-to 2024-06-30
 cargo run -- dashboard
 ```
 
-Affiche une vue d'ensemble du portefeuille (rentabilité par bien, loyers en retard) ainsi qu'un onglet détaillé par bien, avec :
+Affiche une vue d'ensemble du portefeuille — rentabilité par bien, loyers en retard et baux actifs (bien, locataire, loyer, date de début) côte à côte — ainsi qu'un onglet détaillé par bien, avec :
 - un résumé (loyers encaissés, dépenses, net, statut de paiement du bail actif)
+- l'historique des baux du bien (actifs et terminés, avec locataire et loyer)
 - le détail des dépenses (directes et indirectes) et des loyers encaissés, affichés côte à côte
 
 Navigation :
@@ -172,14 +185,15 @@ cargo test
 ```
 
 La suite de tests couvre :
-- les opérations CRUD de chaque modèle, y compris la répartition des frais indirects et les invariants (montants, dates, unicité du bail actif) — `src/db/repository/tests.rs`
-- les calculs de rentabilité et de loyers en retard — `src/db/reporting/tests.rs`
+- les opérations CRUD (dont les modifications `update_*`) de chaque modèle, y compris la répartition des frais indirects et les invariants (montants, dates, périodes, unicité du bail actif, unicité des paiements) — `src/db/repository/tests/` (un fichier par entité)
+- les calculs de rentabilité et de loyers en retard — `src/db/reporting/tests/`
 - des scénarios de bout en bout avec plusieurs biens dans des situations variées (`tests/property_lifecycle.rs`, `tests/reporting.rs`)
 
 ## Choix de conception
 
 - **`Option<i64>` pour les identifiants** : un `Property` construit en mémoire (`Property::new`) n'a pas encore d'`id` (`None`) ; un `Property` lu depuis la base en a toujours un (`Some`). Le type rend cet état impossible à confondre.
-- **Séparation `repository.rs` / `reporting.rs`** : le repository ne fait que du CRUD table par table (et la répartition des frais indirects, qui reste une opération d'écriture sur une seule table logique) ; `reporting.rs` regroupe les requêtes qui combinent plusieurs tables ou contiennent de la logique métier (calcul des mois de loyer manquants, détail agrégé d'un bien).
+- **Séparation `repository.rs` / `reporting.rs`** : le repository ne fait que du CRUD table par table (et la répartition des frais indirects, qui reste une opération d'écriture sur une seule table logique) ; `reporting.rs` regroupe les requêtes qui combinent plusieurs tables ou contiennent de la logique métier (calcul des mois de loyer manquants, détail agrégé d'un bien, historique des baux).
+- **Séparation `cli/mod.rs` / `inputs.rs` / `handlers.rs` / `dispatch.rs`** : les définitions clap (`Cli`, `Command`) sont isolées des structs de regroupement d'arguments, elles-mêmes isolées de la logique métier par commande (`handle_xxx`) et du simple routage (`run_command`) — chaque fichier reste court et a une seule responsabilité. Les structs `Update*Input` réutilisent les champs des `Add*Input` correspondantes plutôt que de les dupliquer.
 - **Répartition égale avec gestion du reste** : diviser un montant en centimes par N ne tombe pas toujours juste (`10001 / 3 ≠` un nombre entier de centimes) ; le reste de la division entière est distribué aux premières parts pour garantir que la somme des parts égale toujours exactement le montant total.
 - **Erreurs typées (`AppError`)** : les erreurs SQLite, de parsing de date et d'I/O terminal sont converties en erreurs explicites (`PropertyNotFound`, `PropertyHasDependents`, `EmptyAllocation`, `Terminal`, etc.) plutôt que de laisser fuiter les détails d'implémentation dans le reste de l'application.
 - **Suppression protégée** : SQLite (avec `PRAGMA foreign_keys = ON`) refuse par défaut de supprimer un bien encore référencé par un bail ou une dépense ; cette contrainte est traduite en erreur `AppError::PropertyHasDependents` plutôt que de laisser remonter une erreur SQLite brute. En CLI, cette erreur est affichée sans interrompre le programme.
@@ -188,11 +202,12 @@ La suite de tests couvre :
 
 ## Feuille de route
 
-- [ ] Répartition personnalisée des frais indirects (proportionnelle à la surface, par exemple, plutôt qu'égale uniquement)
+- [ ] Répartition personnalisée des frais indirects (proportionnelle à la surface, par exemple, plutôt qu'égale uniquement) et prise en charge de leur modification
 - [ ] Export CSV des rapports de rentabilité
 - [ ] Migrations versionnées (`rusqlite_migration`)
 - [ ] Mini graphique (sparkline) de l'évolution des loyers dans le dashboard
+- [ ] Scroll pour l'historique des baux dans le dashboard (actuellement une hauteur fixe, les lignes en trop sont coupées)
 
 ## Licence
 
-À définir...
+À définir.
