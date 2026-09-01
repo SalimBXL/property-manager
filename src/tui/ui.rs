@@ -266,7 +266,10 @@ fn draw_leases_table(frame: &mut Frame, area: Rect, leases: &[LeaseHistoryLine])
                 Cell::from(l.tenant_name.clone()),
                 Cell::from(format!("{:.2} €", l.monthly_rent_cents as f64 / 100.0)),
                 Cell::from(l.start_date.to_string()),
-                Cell::from(l.end_date.map(|d| d.to_string()).unwrap_or_default()),
+                Cell::from(match l.end_date {
+                    Some(d) => d.to_string(),
+                    None => String::new(),
+                }),
                 Cell::from(status_text).style(status_style),
             ])
         })
